@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>حراج اليمن | السوق اليمني المفتوح</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        // Expo Go Deep Link logic
+        (function() {
+            const ua = navigator.userAgent;
+            const isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
+            const deepLink = "haraj-yemen://"; // Adjust based on app.json scheme
+            
+            if (isMobile && window.location.hash !== "#no-redirect") {
+                // We ask or just show the banner instead of forced redirect for better UX
+            }
+        })();
+    </script>
+</head>
+<body>
+    <header>
+        <div id="mobileAppBanner" style="display:none; background: #FFD700; color: #000; padding: 10px; text-align: center; font-weight: bold; font-size: 0.9rem;">
+            <a href="exps://REPLIT_DEV_DOMAIN" id="expoGoLink" style="color: inherit; text-decoration: none;">✨ افتح في تطبيق Expo Go لتجربة كاملة ✨</a>
+        </div>
+        <div class="container nav-shell">
+            <div class="nav-actions nav-actions-right">
+                <a href="#" id="favoritesTrigger"><i class="fa-regular fa-heart"></i> المفضلة</a>
+                <a href="#" id="messagesTrigger"><i class="fa-regular fa-comment"></i> الرسائل</a>
+                <a href="#" class="btn-post" data-auth-trigger="post"><i class="fa-solid fa-plus"></i> أضف إعلان</a>
+                <a href="#" class="profile-icon" id="authTrigger"><i class="fa-solid fa-user-circle"></i> <span id="authTriggerText">دخول</span></a>
+            </div>
+
+            <div class="search-bar">
+                <input type="text" placeholder="ماذا تبحث عنه اليوم؟ (سيارات، عقارات، جوالات...)">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+            </div>
+
+            <a href="#" class="logo">
+                <i class="fa-solid fa-store"></i>
+                حراج <span>اليمن</span>
+            </a>
+        </div>
+    </header>
+
+    <div class="categories-bar">
+        <div class="container categories-list" id="categoriesList"></div>
+    </div>
+
+    <div class="subcategories-bar hidden" id="subcategoriesBar">
+        <div class="container subcategories-list" id="subcategoriesList"></div>
+    </div>
+
+    <main class="container listings-section">
+        <div class="market-toolbar" id="marketToolbar">
+            <div class="market-toolbar-right">
+                <button type="button" class="toolbar-chip" id="saveSearchBtn">
+                    <i class="fa-regular fa-bookmark"></i>
+                </button>
+                <button type="button" class="toolbar-chip" id="nearbyToggleBtn">
+                    القريب
+                </button>
+                <select id="regionFilter" class="toolbar-select">
+                    <option value="">كل المناطق</option>
+                    <option value="أمانة العاصمة">أمانة العاصمة</option>
+                    <option value="عدن">عدن</option>
+                    <option value="أبين">أبين</option>
+                    <option value="البيضاء">البيضاء</option>
+                    <option value="الحديدة">الحديدة</option>
+                    <option value="الجوف">الجوف</option>
+                    <option value="المحويت">المحويت</option>
+                    <option value="الضالع">الضالع</option>
+                    <option value="المهرة">المهرة</option>
+                    <option value="إب">إب</option>
+                    <option value="تعز">تعز</option>
+                    <option value="حجة">حجة</option>
+                    <option value="حضرموت">حضرموت</option>
+                    <option value="ذمار">ذمار</option>
+                    <option value="شبوة">شبوة</option>
+                    <option value="صعدة">صعدة</option>
+                    <option value="صنعاء">صنعاء</option>
+                    <option value="عمران">عمران</option>
+                    <option value="لحج">لحج</option>
+                    <option value="مأرب">مأرب</option>
+                    <option value="ريمة">ريمة</option>
+                    <option value="سقطرى">سقطرى</option>
+                </select>
+            </div>
+            <div class="market-toolbar-left">
+                <span class="market-label">الإعلانات المتاحة</span>
+                <h2 id="resultsTitle">أحدث الإعلانات</h2>
+            </div>
+        </div>
+
+        <div class="listings-feed" id="listingsContainer">
+            <!-- Listings will be injected here by app.js -->
+        </div>
+
+        <section id="listingPage" class="listing-page hidden">
+            <button type="button" class="auth-link-btn listing-back-btn" id="listingBackBtn">العودة للإعلانات</button>
+            <div id="listingPageBody"></div>
+        </section>
+
+        <div id="loader" style="text-align: center; padding: 2rem; display: none;">
+            <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: var(--primary-color);"></i>
+        </div>
+    </main>
+
+    <section class="download-app">
+        <div class="container">
+            <h2 class="download-app-title">تطبيقنا متاح الآن على هواتفكم</h2>
+            <p class="download-app-text">حمل تطبيق حراج اليمن الآن واحصل على تنبيهات فورية وجرب تجربة تسوق أفضل.</p>
+            <div class="store-badges">
+                <a href="#" class="store-badge" aria-label="تحميل من App Store">
+                    <span class="store-badge-icon" aria-hidden="true">
+                        <i class="fa-brands fa-apple"></i>
+                    </span>
+                    <span class="store-badge-copy">
+                        <small>Download on the</small>
+                        <strong>App Store</strong>
+                    </span>
+                </a>
+                <a href="#" class="store-badge" aria-label="تحميل من Google Play">
+                    <span class="store-badge-icon google-play-badge" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" role="img" focusable="false">
+                            <path fill="#34A853" d="M3 2.8v18.4c0 .5.5.8.9.6l10.5-9.8L3.9 2.2A.7.7 0 0 0 3 2.8Z"/>
+                            <path fill="#4285F4" d="m17.8 15.3-3.4-3.3 3.4-3.3 4 2.3c.8.5.8 1.6 0 2.1l-4 2.2Z"/>
+                            <path fill="#FBBC04" d="M3.9 21.8 14.4 12l3.4 3.3-13 7.3c-.5.2-.8-.2-.9-.8Z"/>
+                            <path fill="#EA4335" d="M3.9 2.2 17.8 8.7 14.4 12 3.9 2.2Z"/>
+                        </svg>
+                    </span>
+                    <span class="store-badge-copy">
+                        <small>GET IT ON</small>
+                        <strong>Google Play</strong>
+                    </span>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container" style="padding: 3rem 0; border-top: 1px solid var(--border-color); color: var(--text-muted); display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2rem;">
+            <div>
+                <h3 style="color: var(--primary-color); margin-bottom: 1.5rem;">حراج اليمن</h3>
+                <p>المنصة الرائدة في اليمن للبيع والشراء. أمان تام، سهولة وبساطة في الاستخدام.</p>
+            </div>
+            <div>
+                <h4 style="margin-bottom: 1rem; color: var(--text-main);">روابط هامة</h4>
+                <ul style="list-style: none; display: grid; gap: 0.65rem;">
+                    <li><span style="color: var(--text-main); font-weight: 700;">تواصل معنا</span></li>
+                    <li><a href="tel:+967771074445" style="color: inherit; text-decoration: none;">+967771074445</a></li>
+                    <li><a href="mailto:mohamm3dalfeel@gmail.com" style="color: inherit; text-decoration: none;">mohamm3dalfeel@gmail.com</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4 style="margin-bottom: 1rem; color: var(--text-main);">تواصل معنا</h4>
+                <div style="display: flex; gap: 1rem;">
+                    <a href="#" style="color: var(--primary-color); font-size: 1.5rem;"><i class="fa-brands fa-facebook"></i></a>
+                    <a href="#" style="color: var(--primary-color); font-size: 1.5rem;"><i class="fa-brands fa-whatsapp"></i></a>
+                    <a href="#" style="color: var(--primary-color); font-size: 1.5rem;"><i class="fa-brands fa-twitter"></i></a>
+                    <a href="#" style="color: var(--primary-color); font-size: 1.5rem;"><i class="fa-brands fa-instagram"></i></a>
+                </div>
+            </div>
+        </div>
+        <div style="text-align: center; padding: 1.5rem; background: var(--primary-color); color: rgba(255,255,255,0.7); font-size: 0.9rem;">
+            جميع الحقوق محفوظة &copy; 2026 حراج اليمن
+        </div>
+    </footer>
+
+    <div id="authModal" class="modal">
+        <div class="modal-content auth-modal-content animate-fadeIn">
+            <span class="close-btn" id="closeAuthModal">&times;</span>
+            <div class="auth-shell">
+                <div class="auth-hero">
+                    <span class="auth-badge">حراج اليمن</span>
+                    <h2 id="authTitle">تسجيل الدخول</h2>
+                    <p id="authDescription">أدخل رقم الجوال للمتابعة إلى حسابك.</p>
+                </div>
+
+                <div class="auth-progress">
+                    <span class="auth-progress-dot active" data-step-dot="phone"></span>
+                    <span class="auth-progress-dot" data-step-dot="otp"></span>
+                    <span class="auth-progress-dot" data-step-dot="name"></span>
+                </div>
+
+                <form id="authPhoneStep" class="auth-step">
+                    <label class="auth-label" for="phoneInput">رقم الجوال</label>
+                    <div class="auth-input-row">
+                        <input id="phoneInput" class="auth-input" type="tel" inputmode="numeric" maxlength="9" placeholder="7XXXXXXXX">
+                        <span class="auth-prefix">967+</span>
+                    </div>
+                    <button type="submit" class="auth-btn">إرسال رمز التحقق</button>
+                </form>
+
+                <form id="authOtpStep" class="auth-step hidden">
+                    <p class="auth-note">أدخل الرمز المرسل إلى <strong id="otpPhonePreview"></strong></p>
+                    <div class="auth-code-box">
+                        <span>رمز التحقق التجريبي</span>
+                        <strong id="demoOtpCode">0000</strong>
+                    </div>
+                    <label class="auth-label" for="otpInput">رمز التحقق</label>
+                    <input id="otpInput" class="auth-input auth-input-center" type="tel" inputmode="numeric" maxlength="4" placeholder="----">
+                    <button type="submit" class="auth-btn">تأكيد الرمز</button>
+                    <button type="button" class="auth-link-btn" id="changePhoneBtn">تغيير الرقم</button>
+                </form>
+
+                <form id="authNameStep" class="auth-step hidden">
+                    <label class="auth-label" for="nameInput">الاسم الكامل</label>
+                    <input id="nameInput" class="auth-input" type="text" placeholder="مثال: محمد أحمد علي">
+                    <button type="submit" class="auth-btn">دخول</button>
+                </form>
+
+                <div id="authSuccessState" class="auth-step hidden auth-success">
+                    <div class="auth-success-icon"><i class="fa-solid fa-circle-check"></i></div>
+                    <h3 id="authSuccessName">أهلًا بك</h3>
+                    <p id="authSuccessPhone">تم تسجيل دخولك بنجاح.</p>
+                    <div class="auth-success-actions">
+                        <button type="button" class="auth-btn" id="closeAuthSuccessBtn">متابعة</button>
+                        <button type="button" class="auth-link-btn danger" id="logoutBtn">تسجيل الخروج</button>
+                    </div>
+                </div>
+
+                <p id="authError" class="auth-error hidden"></p>
+            </div>
+        </div>
+    </div>
+
+    <div id="messagesModal" class="modal">
+        <div class="modal-content messages-modal-content messages-page-content animate-fadeIn">
+            <span class="close-btn" id="closeMessagesModal">&times;</span>
+            <div class="messages-header">
+                <h2>الرسائل</h2>
+                <p id="messagesSubtitle">تابع محادثاتك مع البائعين والمشترين.</p>
+            </div>
+            <div class="messages-warning-banner">
+                <div class="messages-warning-icon">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <div class="messages-warning-text">
+                    <strong>تحذير من المحتالين</strong>
+                    <p>تأكد من السلعة قبل دفع المبلغ وفحصها واستلمها في الوقت المحدد.</p>
+                </div>
+            </div>
+            <div id="messagesEmptyState" class="messages-empty-state">
+                <div class="messages-empty-icon"><i class="fa-regular fa-comments"></i></div>
+                <h3>لا توجد رسائل بعد</h3>
+                <p>عندما تتواصل مع بائع أو يصلك استفسار على إعلانك ستظهر المحادثات هنا.</p>
+                <button type="button" class="auth-btn" id="messagesAuthBtn">تسجيل الدخول</button>
+            </div>
+            <div id="messagesList" class="messages-list hidden"></div>
+            <div id="chatView" class="chat-view hidden">
+                <button type="button" class="auth-link-btn chat-back-btn" id="backToMessagesBtn">العودة إلى الرسائل</button>
+                <div class="chat-thread-head">
+                    <h3 id="chatTitle">المحادثة</h3>
+                    <p id="chatMeta">آخر تحديث الآن</p>
+                </div>
+                <div id="chatMessages" class="chat-messages"></div>
+                <form id="chatForm" class="chat-form">
+                    <div class="chat-tools">
+                        <label class="chat-tool-btn" for="chatImageInput">
+                            <i class="fa-regular fa-image"></i>
+                            <span>صورة</span>
+                        </label>
+                        <input id="chatImageInput" type="file" accept="image/*" class="hidden">
+                        <button type="button" class="chat-tool-btn" id="chatRecordBtn">
+                            <i class="fa-solid fa-microphone"></i>
+                            <span id="chatRecordBtnText">تسجيل</span>
+                        </button>
+                    </div>
+                    <div class="chat-compose">
+                        <input id="chatInput" class="auth-input" type="text" placeholder="اكتب رسالتك هنا">
+                        <button type="submit" class="auth-btn">إرسال</button>
+                    </div>
+                    <p id="chatStatus" class="chat-status hidden"></p>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="favoritesModal" class="modal">
+        <div class="modal-content messages-modal-content animate-fadeIn">
+            <span class="close-btn" id="closeFavoritesModal">&times;</span>
+            <div class="messages-header">
+                <h2>المفضلة</h2>
+                <p id="favoritesSubtitle">الإعلانات التي حفظتها للرجوع إليها لاحقًا.</p>
+            </div>
+            <div id="favoritesEmptyState" class="messages-empty-state">
+                <div class="messages-empty-icon"><i class="fa-regular fa-heart"></i></div>
+                <h3>المفضلة فارغة</h3>
+                <p>أضف الإعلانات التي تعجبك إلى المفضلة لتظهر هنا.</p>
+            </div>
+            <div id="favoritesList" class="messages-list hidden"></div>
+        </div>
+    </div>
+
+    <div id="profileModal" class="modal">
+        <div class="modal-content messages-modal-content animate-fadeIn">
+            <span class="close-btn" id="closeProfileModal">&times;</span>
+            <div class="messages-header">
+                <h2>حسابي</h2>
+                <p>تعديل بياناتك وإدارة إعلاناتك.</p>
+            </div>
+            <div class="profile-panel">
+                <div class="profile-summary">
+                    <div class="profile-avatar-wrap">
+                        <div class="profile-avatar" id="profileAvatar">م</div>
+                        <label class="profile-avatar-edit" for="profileAvatarInput">
+                            <i class="fa-solid fa-camera"></i>
+                            <span>صورة</span>
+                        </label>
+                        <input id="profileAvatarInput" type="file" accept="image/*" class="hidden">
+                    </div>
+                    <div class="profile-summary-text">
+                        <strong id="profileName">المستخدم</strong>
+                        <span id="profilePhone">-</span>
+                    </div>
+                </div>
+                <div class="profile-form">
+                    <label class="auth-label" for="profileNameInput">الاسم الكامل</label>
+                    <input id="profileNameInput" class="auth-input" type="text" placeholder="مثال: أحمد محمد">
+                    <label class="auth-label" for="profilePhoneInput">رقم الجوال</label>
+                    <input id="profilePhoneInput" class="auth-input" type="tel" inputmode="numeric" maxlength="9" placeholder="7XXXXXXXX">
+                    <div class="profile-actions">
+                        <button type="button" class="auth-btn" id="saveProfileBtn">حفظ التغييرات</button>
+                        <button type="button" class="auth-link-btn danger" id="logoutProfileBtn">تسجيل الخروج</button>
+                    </div>
+                    <p id="profileError" class="auth-error hidden"></p>
+                </div>
+            </div>
+            <div class="messages-header" style="margin-top: 1rem;">
+                <h2>إعلاناتي</h2>
+            </div>
+            <div id="profileListingsEmpty" class="messages-empty-state">
+                <div class="messages-empty-icon"><i class="fa-regular fa-rectangle-list"></i></div>
+                <h3>لا توجد إعلانات بعد</h3>
+                <p>الإعلانات التي تنشرها من حسابك ستظهر هنا.</p>
+            </div>
+            <div id="profileListingsList" class="messages-list hidden"></div>
+        </div>
+    </div>
+
+    <div id="postModal" class="modal">
+        <div class="modal-content post-modal-content animate-fadeIn">
+            <span class="close-btn" id="closePostModal">&times;</span>
+            <div class="messages-header">
+                <h2>إضافة إعلان</h2>
+                <p id="postSubtitle">أدخل تفاصيل إعلانك وسيظهر مباشرة في الصفحة.</p>
+            </div>
+            <form id="postForm" class="post-form">
+                <div class="post-grid">
+                    <div class="post-field">
+                        <label class="auth-label" for="postTitle">عنوان الإعلان</label>
+                        <input id="postTitle" class="auth-input" type="text" placeholder="مثال: تويوتا كورولا 2016 للبيع">
+                    </div>
+                    <div class="post-field">
+                        <label class="auth-label" for="postPrice">السعر</label>
+                        <input id="postPrice" class="auth-input" type="text" placeholder="مثال: 12,000 $">
+                    </div>
+                    <div class="post-field">
+                        <label class="auth-label" for="postCurrency">العملة</label>
+                        <select id="postCurrency" class="auth-input"></select>
+                    </div>
+                    <div class="post-field">
+                        <label class="auth-label" for="postLocation">المحافظة</label>
+                        <select id="postLocation" class="auth-input">
+                            <option value="">اختر المحافظة</option>
+                            <option value="أمانة العاصمة">أمانة العاصمة</option>
+                            <option value="عدن">عدن</option>
+                            <option value="أبين">أبين</option>
+                            <option value="البيضاء">البيضاء</option>
+                            <option value="الحديدة">الحديدة</option>
+                            <option value="الجوف">الجوف</option>
+                            <option value="المحويت">المحويت</option>
+                            <option value="الضالع">الضالع</option>
+                            <option value="المهرة">المهرة</option>
+                            <option value="إب">إب</option>
+                            <option value="تعز">تعز</option>
+                            <option value="حجة">حجة</option>
+                            <option value="حضرموت">حضرموت</option>
+                            <option value="ذمار">ذمار</option>
+                            <option value="شبوة">شبوة</option>
+                            <option value="صعدة">صعدة</option>
+                            <option value="صنعاء">صنعاء</option>
+                            <option value="عمران">عمران</option>
+                            <option value="لحج">لحج</option>
+                            <option value="مأرب">مأرب</option>
+                            <option value="ريمة">ريمة</option>
+                            <option value="سقطرى">سقطرى</option>
+                        </select>
+                    </div>
+                    <div class="post-field">
+                        <label class="auth-label" for="postCategory">القسم</label>
+                        <select id="postCategory" class="auth-input"></select>
+                    </div>
+                    <div class="post-field">
+                        <label class="auth-label" for="postSubcategory">القسم الفرعي</label>
+                        <select id="postSubcategory" class="auth-input"></select>
+                    </div>
+                    <div class="post-field">
+                        <label class="auth-label" for="postPriceType">نوع السعر</label>
+                        <select id="postPriceType" class="auth-input"></select>
+                    </div>
+                    <div class="post-field">
+                        <label class="auth-label" for="postCondition">حالة السلعة</label>
+                        <select id="postCondition" class="auth-input"></select>
+                    </div>
+                </div>
+                <div class="post-field">
+                    <label class="auth-label" for="postDescription">وصف الإعلان</label>
+                    <textarea id="postDescription" class="auth-input post-textarea" placeholder="اكتب وصفًا واضحًا للحالة والمواصفات وطريقة التواصل"></textarea>
+                </div>
+                <div class="post-rules hidden">
+                    <h3>محظورات الإعلان</h3>
+                    <p>يُمنع نشر أو عرض أي من العناصر التالية داخل المنصة:</p>
+                    <ul>
+                        <li>منتجات التبغ بجميع أنواعها</li>
+                        <li>المخدرات أو المواد المحظورة</li>
+                        <li>القات ومشتقاته</li>
+                        <li>المحتوى الجنسي أو العري</li>
+                        <li>الولعه</li>
+                    </ul>
+                </div>
+                <div class="post-field">
+                    <label class="auth-label" for="postImage">صور الإعلان</label>
+                    <input id="postImage" class="auth-input post-file-input" type="file" accept="image/*" multiple>
+                    <div id="postImagePreview" class="post-image-preview-grid hidden">
+                    </div>
+                    <p class="post-upload-hint">يمكنك رفع حتى 10 صور من جهازك. إذا لم ترفع صورًا سنستخدم صورة افتراضية.</p>
+                </div>
+                <div class="post-actions">
+                    <button type="submit" class="auth-btn" id="submitPostBtn">نشر الإعلان</button>
+                    <button type="button" class="auth-link-btn" id="cancelPostBtn">إلغاء</button>
+                </div>
+                <p id="postError" class="auth-error hidden"></p>
+            </form>
+        </div>
+    </div>
+
+    <div id="publishAgreementModal" class="modal">
+        <div class="modal-content agreement-modal-content animate-fadeIn">
+            <span class="close-btn" id="closeAgreementModal">&times;</span>
+            <div class="agreement-shell">
+                <p class="agreement-basmalah">بسم الله الرحمن الرحيم</p>
+                <p class="agreement-verse">
+                    قال الله تعالى: " وَأَوْفُوا بِعَهْدِ اللَّهِ إِذَا عَاهَدتُّمْ وَلَا تَنقُضُوا الْأَيْمَانَ بَعْدَ تَوْكِيدِهَا وَقَدْ جَعَلْتُمُ اللَّهَ عَلَيْكُمْ كَفِيلًا "
+                </p>
+                <p class="agreement-verse-note">صدق الله العظيم</p>
+
+                <div class="agreement-card">
+                    <label class="agreement-check-row" for="agreementCheckbox">
+                        <input id="agreementCheckbox" type="checkbox">
+                        <span>
+                            أتعهد وأقسم بالله أن أدفع رسوم الموقع وهي 1% من قيمة البيع سواء تم البيع عن طريق الموقع أو بسببه.
+                        </span>
+                    </label>
+                    <p class="agreement-line">كما أتعهد بدفع الرسوم خلال 10 أيام من استلام كامل مبلغ المبايعة.</p>
+                    <p class="agreement-required">تجب الموافقة على المعاهدة</p>
+                </div>
+
+                <div class="agreement-note">
+                    <h3>ملاحظة بشأن الرسوم</h3>
+                    <p>رسوم الموقع هي على المعلن ولا تبرأ ذمة المعلن من الرسوم إلا في حال دفعها.</p>
+                </div>
+
+                <div class="agreement-actions">
+                    <button type="button" class="auth-link-btn" id="cancelAgreementBtn">إلغاء</button>
+                    <button type="button" class="auth-btn" id="confirmAgreementBtn">موافقة ونشر الإعلان</button>
+                </div>
+                <p id="agreementError" class="auth-error hidden"></p>
+            </div>
+        </div>
+    </div>
+
+    <div id="imageLightboxModal" class="modal">
+        <div class="image-lightbox-shell">
+            <button type="button" class="image-lightbox-close" id="closeImageLightbox">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <img id="imageLightboxTarget" class="image-lightbox-target" alt="تكبير الصورة">
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

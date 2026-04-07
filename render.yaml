@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: haraj-yemen
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: DB_PATH
+        value: /var/data/db.sqlite
+    disk:
+      name: haraj-yemen-data
+      mountPath: /var/data
+      sizeGB: 1
