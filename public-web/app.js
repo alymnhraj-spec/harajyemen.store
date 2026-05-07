@@ -102,12 +102,16 @@ function getFirebaseErrorMessage(code) {
         "auth/user-not-found": "البريد الإلكتروني غير مسجل.",
         "auth/wrong-password": "كلمة المرور غير صحيحة.",
         "auth/invalid-credential": "البريد أو كلمة المرور غير صحيحة.",
+        "auth/invalid-login-credentials": "البريد أو كلمة المرور غير صحيحة.",
         "auth/email-already-in-use": "هذا البريد الإلكتروني مسجل بالفعل.",
         "auth/weak-password": "كلمة المرور ضعيفة، يجب أن تكون 6 أحرف على الأقل.",
         "auth/invalid-email": "البريد الإلكتروني غير صحيح.",
         "auth/too-many-requests": "تم تجاوز عدد المحاولات. حاول لاحقًا.",
+        "auth/network-request-failed": "خطأ في الاتصال بالإنترنت. حاول مرة أخرى.",
+        "auth/user-disabled": "هذا الحساب موقوف.",
+        "auth/operation-not-allowed": "تسجيل الدخول بالإيميل غير مفعّل.",
     };
-    return msgs[code] || "حدث خطأ. حاول مرة أخرى.";
+    return msgs[code] || `خطأ: ${code || "غير معروف"}`;
 }
 
 const listingsContainer = document.getElementById("listingsContainer");
