@@ -1936,17 +1936,17 @@ authForm?.addEventListener("submit", async (e) => {
         if (isRegister) {
             const name = nameInput.value.trim();
             const cred = await fbAuth.createUserWithEmailAndPassword(email, password);
-            await fbDb.collection("users").doc(cred.user.uid).set({
+            // Save to Firestore (non-fatal if fails)
+            fbDb.collection("users").doc(cred.user.uid).set({
                 name,
                 email,
                 phone: "",
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            });
-            await cred.user.updateProfile({ displayName: name });
+            }).catch(() => {});
+            cred.user.updateProfile({ displayName: name }).catch(() => {});
         } else {
             await fbAuth.signInWithEmailAndPassword(email, password);
         }
-        // onAuthStateChanged handles updating stored user
         showAuthSuccess();
     } catch (err) {
         setAuthError(getFirebaseErrorMessage(err.code));
