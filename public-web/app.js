@@ -380,7 +380,8 @@ let nearbyOnly = false;
 let pendingPostDraft = null;
 let userCoordinates = null;
 let nearestGovernorateId = "";
-const seededConversations = {};
+let unsubscribeMessages = null;
+let unsubscribeInbox = null;
 let remoteState = {
     listings: [],
     favorites: [],
@@ -406,16 +407,20 @@ async function apiRequest(path, options = {}) {
 }
 
 async function refreshRemoteState() {
-    const snapshot = await fbDb.collection("posts")
-        .orderBy("createdAt", "desc")
-        .limit(200)
-        .get();
+    const snapshot = await fbDb.collection("posts").limit(200).get();
 
-    remoteState.listings = snapshot.docs.map((doc) => {
-        const data = doc.data();
-        const createdAt = data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString();
-        return { id: doc.id, ...data, createdAt };
-    });
+    remoteState.listings = snapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .filter((item) => item.status !== "deleted" && !item.deleted_by_admin)
+        .sort((a, b) => {
+            const getTs = (item) => {
+                const ts = item.created_at || item.createdAt;
+                if (!ts) return 0;
+                if (ts?.toDate) return ts.toDate().getTime();
+                return new Date(ts).getTime();
+            };
+            return getTs(b) - getTs(a);
+        });
 
     const user = getStoredUser();
     if (user?.id) {
@@ -517,70 +522,110 @@ function setStoredFavorites(items) {
     }
 }
 
-function getStoredMessages() {
-    const cutoff = Date.now() - MESSAGE_TTL_MS;
-    return (remoteState.messages || []).filter((message) => new Date(message.timestamp).getTime() >= cutoff);
-}
+// ===== Firebase Chat =====
 
-function setStoredMessages(items) {
-    remoteState.messages = Array.isArray(items) ? items : [];
-}
-
-function sendStoredMessage(message) {
-    const nextMessage = {
-        id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        timestamp: new Date().toISOString(),
-        isRead: false,
-        mediaType: "text",
-        ...message,
-    };
-    const next = [...getStoredMessages(), nextMessage];
-    setStoredMessages(next);
-    apiRequest("/messages", {
-        method: "POST",
-        body: JSON.stringify(message),
-    })
-        .then(() => refreshRemoteState().catch(() => {}))
-        .catch(() => {});
-}
-
-function getConversationKey(listingId, otherUserId) {
-    return `${listingId}__${otherUserId}`;
-}
-
-function getInboxThreads() {
+async function getOrCreateConversation(item) {
     const currentUser = getStoredUser();
-    if (!currentUser) return [];
+    const otherUserId = item.user_id || item.userId;
+    if (!otherUserId || otherUserId === currentUser.id) return null;
 
-    const grouped = {};
-    getStoredMessages().forEach((message) => {
-        const otherUserId = message.senderId === currentUser.id ? message.receiverId : message.senderId;
-        const key = getConversationKey(message.listingId, otherUserId);
-        if (!grouped[key] || new Date(message.timestamp) > new Date(grouped[key].timestamp)) {
-            grouped[key] = message;
-        }
+    const snapshot = await fbDb.collection("conversations")
+        .where("participants", "array-contains", currentUser.id)
+        .get();
+
+    const existing = snapshot.docs.find((doc) => {
+        const data = doc.data();
+        return (
+            Array.isArray(data.participants) &&
+            data.participants.includes(otherUserId) &&
+            (data.post_id === item.id || data.last_post_title === item.title)
+        );
     });
 
-    return Object.values(grouped).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    if (existing) return existing.id;
+
+    const firstImage = (Array.isArray(item.images) ? item.images[0] : null) || "";
+    const ref = await fbDb.collection("conversations").add({
+        participants: [currentUser.id, otherUserId],
+        post_id: item.id,
+        last_post_title: item.title,
+        last_post_image: typeof firstImage === "string" ? firstImage : (firstImage?.uri || ""),
+        last_message: "",
+        last_message_time: firebase.firestore.FieldValue.serverTimestamp(),
+        created_at: firebase.firestore.FieldValue.serverTimestamp(),
+        unread: { [currentUser.id]: 0, [otherUserId]: 0 },
+    });
+
+    return ref.id;
 }
 
-function getConversationMessages(listingId, otherUserId) {
+async function sendFirebaseMessage(conversationId, text, mediaType = "text") {
     const currentUser = getStoredUser();
-    if (!currentUser) return [];
-
-    return getStoredMessages()
-        .filter((message) => {
-            const sameListing = String(message.listingId) === String(listingId);
-            const samePair =
-                (message.senderId === currentUser.id && message.receiverId === otherUserId) ||
-                (message.senderId === otherUserId && message.receiverId === currentUser.id);
-            return sameListing && samePair;
-        })
-        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const ts = firebase.firestore.FieldValue.serverTimestamp();
+    await fbDb.collection("conversations").doc(conversationId)
+        .collection("messages").add({ sender_id: currentUser.id, text, timestamp: ts, media_type: mediaType });
+    const preview = mediaType === "image" ? "📷 صورة" : mediaType === "audio" ? "🎤 رسالة صوتية" : text;
+    await fbDb.collection("conversations").doc(conversationId)
+        .set({ last_message: preview, last_message_time: ts }, { merge: true });
 }
 
-function getConversationImageCount(listingId, otherUserId) {
-    return getConversationMessages(listingId, otherUserId).filter((message) => message.mediaType === "image").length;
+function listenToConversationMessages(conversationId, onMessages) {
+    if (unsubscribeMessages) { unsubscribeMessages(); unsubscribeMessages = null; }
+    unsubscribeMessages = fbDb.collection("conversations").doc(conversationId)
+        .collection("messages").orderBy("timestamp", "asc")
+        .onSnapshot((snap) => {
+            onMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        }, () => {});
+}
+
+function listenToInbox(onConversations) {
+    const currentUser = getStoredUser();
+    if (!currentUser) return;
+    if (unsubscribeInbox) { unsubscribeInbox(); unsubscribeInbox = null; }
+    unsubscribeInbox = fbDb.collection("conversations")
+        .where("participants", "array-contains", currentUser.id)
+        .orderBy("last_message_time", "desc")
+        .onSnapshot((snap) => {
+            onConversations(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        }, () => {});
+}
+
+function renderChatMessages(messages) {
+    const currentUser = getStoredUser();
+    chatMessages.innerHTML = "";
+    messages.forEach((message) => {
+        const isMine = message.sender_id === currentUser?.id;
+        const bubble = document.createElement("div");
+        bubble.className = `chat-bubble ${isMine ? "mine" : "peer"}`;
+        const mediaType = message.media_type || "text";
+        if (mediaType === "image") {
+            const img = document.createElement("img");
+            img.src = message.text;
+            img.alt = "صورة مرفقة";
+            bubble.appendChild(img);
+        } else if (mediaType === "audio") {
+            const audio = document.createElement("audio");
+            audio.controls = true;
+            audio.src = message.text;
+            bubble.appendChild(audio);
+        } else {
+            bubble.textContent = message.text;
+        }
+        chatMessages.appendChild(bubble);
+    });
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function openFirebaseConversation(conv, otherUserId) {
+    activeConversationId = conv.id;
+    activeConversationMeta = { conversationId: conv.id, listingTitle: conv.last_post_title || "محادثة", otherUserId };
+    chatTitle.textContent = conv.last_post_title || "محادثة";
+    chatMeta.textContent = "";
+    chatMessages.innerHTML = "";
+    messagesList.classList.add("hidden");
+    chatView.classList.remove("hidden");
+    listenToConversationMessages(conv.id, renderChatMessages);
+    chatInput.focus();
 }
 
 function isFavoriteListing(id) {
@@ -750,21 +795,25 @@ function normalizeListing(item) {
         return img?.uri || img?.url || img?.downloadURL || "";
     }).filter(Boolean);
 
+    const ts = item.created_at || item.createdAt;
+    const createdAt = ts instanceof Date
+        ? ts.toISOString()
+        : (ts?.toDate?.()?.toISOString() || (typeof ts === "string" ? ts : null) || new Date().toISOString());
+
     return {
         ...item,
+        userId: item.user_id || item.userId || "",
+        userName: item.user_name || item.userName || item.author || "المستخدم",
+        userPhone: item.user_phone || item.userPhone || item.phone || "",
+        userAvatar: item.user_avatar || item.userAvatar || "",
         category: mapLegacyCategory(item.category),
-        governorate: item.governorate || mapLegacyGovernorate(item.location),
-        userName: item.userName || item.author || "المستخدم",
-        userPhone: item.userPhone || item.phone || "",
-        userAvatar: item.userAvatar || "",
-        createdAt: item.createdAt instanceof Date
-            ? item.createdAt.toISOString()
-            : (item.createdAt?.toDate?.()?.toISOString() || item.createdAt || new Date().toISOString()),
-        priceType: item.priceType || "fixed",
+        governorate: item.governorate_id || item.governorate || mapLegacyGovernorate(item.location),
+        priceType: item.price_type || item.priceType || "fixed",
         currency: item.currency || "yer",
         condition: item.condition || "good",
-        views: item.views ?? 0,
+        views: item.view_count ?? item.views ?? 0,
         favorites: item.favorites ?? 0,
+        createdAt,
         images,
     };
 }
@@ -888,7 +937,10 @@ function openMessagesModal() {
         return;
     }
 
-    renderMessagesInbox();
+    messagesSubtitle.textContent = `مرحبًا ${user.name}، جاري تحميل محادثاتك...`;
+    messagesList.classList.remove("hidden");
+    messagesEmptyState.classList.add("hidden");
+    listenToInbox(renderMessagesInbox);
 }
 
 function closeMessages() {
@@ -897,6 +949,8 @@ function closeMessages() {
     }
     stopRecordingStream();
     resetRecorderUi();
+    if (unsubscribeMessages) { unsubscribeMessages(); unsubscribeMessages = null; }
+    if (unsubscribeInbox) { unsubscribeInbox(); unsubscribeInbox = null; }
     messagesModal.style.display = "none";
     setBodyScrollLocked(false);
     activeConversationId = null;
@@ -1000,15 +1054,12 @@ function closeProfilePanel() {
     setBodyScrollLocked(false);
 }
 
-function renderMessagesInbox() {
+function renderMessagesInbox(conversations) {
     const user = getStoredUser();
-    const threads = getInboxThreads();
     messagesList.innerHTML = "";
 
-    if (!user || !threads.length) {
-        messagesSubtitle.textContent = user
-            ? "ابدأ محادثة مع البائع من صفحة الإعلان."
-            : "سجّل الدخول أولًا حتى تصل إلى محادثاتك.";
+    if (!conversations || !conversations.length) {
+        messagesSubtitle.textContent = "ابدأ محادثة مع البائع من صفحة الإعلان.";
         messagesEmptyState.classList.remove("hidden");
         messagesList.classList.add("hidden");
         return;
@@ -1018,128 +1069,51 @@ function renderMessagesInbox() {
     messagesEmptyState.classList.add("hidden");
     messagesList.classList.remove("hidden");
 
-    threads.forEach((item) => {
-        const otherName = item.senderId === user.id ? "البائع" : item.senderName;
+    conversations.forEach((conv) => {
+        const otherUserId = (conv.participants || []).find((uid) => uid !== user.id) || "";
+        const lastTime = conv.last_message_time?.toDate?.() || new Date();
         const card = document.createElement("div");
         card.className = "message-card";
         card.innerHTML = `
             <div class="message-card-thread">
-                <div class="message-avatar">${otherName.charAt(0)}</div>
+                <div class="message-avatar">${(conv.last_post_title || "م").charAt(0)}</div>
                 <div class="message-thread-body">
                     <div class="message-thread-top">
-                        <strong class="message-thread-title">${otherName}</strong>
-                        <span class="message-thread-time">${timeAgo(item.timestamp)}</span>
+                        <strong class="message-thread-title">${conv.last_post_title || "محادثة"}</strong>
+                        <span class="message-thread-time">${timeAgo(lastTime.toISOString())}</span>
                     </div>
-                    <div class="message-thread-listing">${item.listingTitle}</div>
-                    <div class="message-thread-preview">${item.content}</div>
+                    <div class="message-thread-preview">${conv.last_message || "لا توجد رسائل بعد"}</div>
                 </div>
-                <span class="message-unread-dot"></span>
             </div>
         `;
-        card.addEventListener("click", () => {
-            renderConversation({
-                listingId: item.listingId,
-                listingTitle: item.listingTitle,
-                otherUserId: item.senderId === user.id ? item.receiverId : item.senderId,
-                otherName,
-            });
-        });
+        card.addEventListener("click", () => openFirebaseConversation(conv, otherUserId));
         messagesList.appendChild(card);
     });
 }
 
-function renderConversation(meta) {
-    const messages = getConversationMessages(meta.listingId, meta.otherUserId);
-    if (!messages.length) {
-        return;
-    }
-
-    activeConversationId = getConversationKey(meta.listingId, meta.otherUserId);
-    activeConversationMeta = meta;
-    chatTitle.textContent = meta.otherName;
-    chatMeta.textContent = meta.listingTitle;
-    chatMessages.innerHTML = "";
-
-    messages.forEach((message) => {
-        const bubble = document.createElement("div");
-        bubble.className = `chat-bubble ${message.senderId === getStoredUser()?.id ? "mine" : "peer"}`;
-
-        if (message.mediaType === "image") {
-            const img = document.createElement("img");
-            img.src = message.content;
-            img.alt = "صورة مرفقة";
-            bubble.appendChild(img);
-        } else if (message.mediaType === "audio") {
-            const audio = document.createElement("audio");
-            audio.controls = true;
-            audio.src = message.content;
-            bubble.appendChild(audio);
-        } else {
-            bubble.textContent = message.content;
-        }
-
-        chatMessages.appendChild(bubble);
-    });
-
-    messagesList.classList.add("hidden");
-    chatView.classList.remove("hidden");
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-    chatInput.focus();
-}
-
-function ensureConversationForListing(item) {
-    const currentUser = getStoredUser();
-    const otherUserId = item.userId || `seller_${item.id}`;
-    const existing = getConversationMessages(item.id, otherUserId);
-    const conversationKey = getConversationKey(item.id, otherUserId);
-    if (!existing.length && currentUser && !seededConversations[conversationKey]) {
-        const seedPayload = {
-            listingId: item.id,
-            listingTitle: item.title,
-            senderId: otherUserId,
-            receiverId: currentUser.id,
-            senderName: item.userName,
-            content: `مرحبًا، هذا الإعلان "${item.title}" ما زال متاحًا. كيف أستطيع مساعدتك؟`,
-            mediaType: "text",
-        };
-
-        apiRequest("/messages/seed", {
-            method: "POST",
-            body: JSON.stringify(seedPayload),
-        })
-            .then(() => refreshRemoteState().catch(() => {}))
-            .catch(() => {});
-        setStoredMessages([...getStoredMessages(), {
-            id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-            timestamp: new Date().toISOString(),
-            isRead: false,
-            ...seedPayload,
-        }]);
-        seededConversations[conversationKey] = true;
-    }
-
-    return {
-        listingId: item.id,
-        listingTitle: item.title,
-        otherUserId,
-        otherName: item.userName,
-    };
-}
-
-function openListingConversation(item) {
+async function openListingConversation(item) {
     const user = getStoredUser();
-    if (!user) {
-        openAuthModal("login");
-        return;
-    }
+    if (!user) { openAuthModal("login"); return; }
 
-    const conversationMeta = ensureConversationForListing(item);
+    const otherUserId = item.user_id || item.userId;
+    if (!otherUserId || otherUserId === user.id) return;
+
     messagesModal.style.display = "flex";
     setBodyScrollLocked(true);
     messagesEmptyState.classList.add("hidden");
-    messagesList.classList.remove("hidden");
-    messagesSubtitle.textContent = `مرحبًا ${user.name}، هذه محادثتك مع المعلن.`;
-    renderConversation(conversationMeta);
+    messagesList.classList.add("hidden");
+    chatView.classList.add("hidden");
+    messagesSubtitle.textContent = "جاري تحميل المحادثة...";
+
+    try {
+        const convId = await getOrCreateConversation(item);
+        if (!convId) return;
+        const convDoc = await fbDb.collection("conversations").doc(convId).get();
+        openFirebaseConversation({ id: convId, ...convDoc.data() }, otherUserId);
+    } catch {
+        messagesSubtitle.textContent = "تعذر فتح المحادثة. حاول مرة أخرى.";
+        messagesEmptyState.classList.remove("hidden");
+    }
 }
 
 function openPostModal() {
@@ -1198,18 +1172,19 @@ async function publishPostDraft(draft) {
         title: draft.title,
         price: draft.priceType === "free" || draft.priceType === "exchange" ? 0 : Number(draft.price) || 0,
         currency: draft.currency || "yer",
-        priceType: draft.priceType,
+        price_type: draft.priceType,
         subcategory: draft.subcategory,
         governorate: draft.governorate,
         condition: draft.condition,
-        userId: draft.user.id,
-        userName: draft.user.name,
-        userPhone: draft.user.phone || "",
-        userAvatar: draft.user.avatar || "",
+        user_id: draft.user.id,
+        user_name: draft.user.name,
+        user_phone: draft.user.phone || "",
+        user_avatar: draft.user.avatar || "",
         category: draft.category,
         description: draft.description,
-        images: imageUrls.map((url) => ({ uri: url })),
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        images: imageUrls,
+        status: "active",
+        created_at: firebase.firestore.FieldValue.serverTimestamp(),
     };
 
     await fbDb.collection("posts").add(payload);
@@ -1941,7 +1916,7 @@ authForm?.addEventListener("submit", async (e) => {
                 name,
                 email,
                 phone: "",
-                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                created_at: firebase.firestore.FieldValue.serverTimestamp(),
             }).catch(() => {});
             cred.user.updateProfile({ displayName: name }).catch(() => {});
         } else {
@@ -2034,43 +2009,34 @@ backToMessagesBtn.addEventListener("click", () => {
     }
     stopRecordingStream();
     resetRecorderUi();
+    if (unsubscribeMessages) { unsubscribeMessages(); unsubscribeMessages = null; }
     chatView.classList.add("hidden");
     messagesList.classList.remove("hidden");
     setChatStatus("");
     const user = getStoredUser();
     if (user) {
         messagesSubtitle.textContent = `مرحبًا ${user.name}، هذه آخر محادثاتك.`;
+        listenToInbox(renderMessagesInbox);
     }
 });
 
-chatForm.addEventListener("submit", (e) => {
+chatForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const text = chatInput.value.trim();
-
     const currentUser = getStoredUser();
-    if (!text || !activeConversationId || !activeConversationMeta || !currentUser) {
-        return;
-    }
-
-    sendStoredMessage({
-        listingId: activeConversationMeta.listingId,
-        listingTitle: activeConversationMeta.listingTitle,
-        senderId: currentUser.id,
-        receiverId: activeConversationMeta.otherUserId,
-        senderName: currentUser.name,
-        content: text,
-        mediaType: "text",
-    });
+    if (!text || !activeConversationId || !currentUser) return;
     chatInput.value = "";
-    renderConversation(activeConversationMeta);
+    try {
+        await sendFirebaseMessage(activeConversationId, text, "text");
+    } catch {
+        setChatStatus("تعذر إرسال الرسالة.");
+    }
 });
 
-chatImageInput.addEventListener("change", () => {
+chatImageInput.addEventListener("change", async () => {
     const file = chatImageInput.files?.[0];
     const currentUser = getStoredUser();
-    if (!file || !activeConversationId || !activeConversationMeta || !currentUser) {
-        return;
-    }
+    if (!file || !activeConversationId || !currentUser) return;
 
     if (!file.type.startsWith("image/")) {
         setChatStatus("الملف المختار ليس صورة.");
@@ -2078,37 +2044,17 @@ chatImageInput.addEventListener("change", () => {
         return;
     }
 
-    if (getConversationImageCount(activeConversationMeta.listingId, activeConversationMeta.otherUserId) >= MAX_CHAT_IMAGES_PER_CONVERSATION) {
-        setChatStatus("الحد الأقصى لصور هذه المحادثة هو 3 صور.");
-        chatImageInput.value = "";
-        return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-        const src = typeof reader.result === "string" ? reader.result : "";
-        if (!src) {
-            setChatStatus("تعذر قراءة الصورة.");
-            return;
-        }
-
-        sendStoredMessage({
-            listingId: activeConversationMeta.listingId,
-            listingTitle: activeConversationMeta.listingTitle,
-            senderId: currentUser.id,
-            receiverId: activeConversationMeta.otherUserId,
-            senderName: currentUser.name,
-            content: src,
-            mediaType: "image",
-        });
+    try {
+        setChatStatus("جاري رفع الصورة...");
+        const ref = fbStorage.ref(`chat/${activeConversationId}/${Date.now()}_${Math.random().toString(36).slice(2)}`);
+        await ref.put(file);
+        const url = await ref.getDownloadURL();
+        await sendFirebaseMessage(activeConversationId, url, "image");
         setChatStatus("تم إرفاق الصورة.");
-        chatImageInput.value = "";
-        renderConversation(activeConversationMeta);
-    };
-    reader.onerror = () => {
-        setChatStatus("تعذر قراءة الصورة.");
-    };
-    reader.readAsDataURL(file);
+    } catch {
+        setChatStatus("تعذر رفع الصورة.");
+    }
+    chatImageInput.value = "";
 });
 
 chatRecordBtn.addEventListener("click", async () => {
@@ -2136,25 +2082,23 @@ chatRecordBtn.addEventListener("click", async () => {
                 audioChunks.push(event.data);
             }
         };
-        mediaRecorder.onstop = () => {
+        mediaRecorder.onstop = async () => {
             const currentUser = getStoredUser();
             const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType || "audio/webm" });
-            const src = URL.createObjectURL(audioBlob);
-            if (currentUser) {
-                sendStoredMessage({
-                    listingId: activeConversationMeta.listingId,
-                    listingTitle: activeConversationMeta.listingTitle,
-                    senderId: currentUser.id,
-                    receiverId: activeConversationMeta.otherUserId,
-                    senderName: currentUser.name,
-                    content: src,
-                    mediaType: "audio",
-                });
-            }
             resetRecorderUi();
             stopRecordingStream();
-            setChatStatus("تم إرسال الرسالة الصوتية.");
-            renderConversation(activeConversationMeta);
+            if (currentUser && activeConversationId) {
+                try {
+                    setChatStatus("جاري رفع الرسالة الصوتية...");
+                    const ref = fbStorage.ref(`chat/${activeConversationId}/${Date.now()}_audio`);
+                    await ref.put(audioBlob);
+                    const url = await ref.getDownloadURL();
+                    await sendFirebaseMessage(activeConversationId, url, "audio");
+                    setChatStatus("تم إرسال الرسالة الصوتية.");
+                } catch {
+                    setChatStatus("تعذر إرسال الرسالة الصوتية.");
+                }
+            }
         };
         mediaRecorder.start();
         chatRecordBtn.classList.add("recording");
