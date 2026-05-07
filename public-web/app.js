@@ -1953,7 +1953,7 @@ authForm?.addEventListener("submit", async (e) => {
         }
         showAuthSuccess();
     } catch (err) {
-        setAuthError(getFirebaseErrorMessage(err.code));
+        setAuthError(getFirebaseErrorMessage(err.code) + (err.code ? "" : ` (${err.message || JSON.stringify(err)})`));
     } finally {
         authSubmitBtn.disabled = false;
         authSubmitBtn.textContent = isRegister ? "إنشاء حساب" : "تسجيل الدخول";
