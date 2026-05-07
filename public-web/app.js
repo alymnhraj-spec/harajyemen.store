@@ -843,16 +843,12 @@ function setAuthMode(mode) {
 
 function showAuthSuccess() {
     const user = getStoredUser();
-    authPhoneStep.classList.add("hidden");
-    authOtpStep.classList.add("hidden");
-    authNameStep.classList.add("hidden");
+    authForm?.classList.add("hidden");
     authSuccessState.classList.remove("hidden");
     authTitle.textContent = "تم تسجيل الدخول";
     authDescription.textContent = "حسابك جاهز الآن داخل حراج اليمن.";
     authSuccessName.textContent = `أهلًا ${user?.name || ""}`;
     authSuccessPhone.textContent = user?.email ? `البريد: ${user.email}` : "";
-    authStepDots.forEach((dot) => dot.classList.remove("active"));
-    authStepDots.forEach((dot) => dot.classList.add("done"));
 }
 
 function openAuthModal(mode = "login") {
