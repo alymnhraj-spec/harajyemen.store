@@ -1,8 +1,10 @@
 const path = require("path");
 const crypto = require("crypto");
+const fs = require("fs");
 const { DatabaseSync } = require("node:sqlite");
 
 const DB_PATH = path.resolve(process.env.DB_PATH || path.join(__dirname, "db.sqlite"));
+fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 const MESSAGE_TTL_MS = 24 * 60 * 60 * 1000;
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_CHAT_IMAGES_PER_CONVERSATION = 3;
