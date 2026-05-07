@@ -109,7 +109,7 @@ const authSuccessState = document.getElementById("authSuccessState");
 const authTitle = document.getElementById("authTitle");
 const authDescription = document.getElementById("authDescription");
 const authError = document.getElementById("authError");
-const phoneInput = document.getElementById("phoneInput");
+const emailInput = document.getElementById("emailInput");
 const otpInput = document.getElementById("otpInput");
 const nameInput = document.getElementById("nameInput");
 const otpPhonePreview = document.getElementById("otpPhonePreview");
@@ -339,7 +339,7 @@ function requestNearbyLocation() {
 }
 
 let authStep = "phone";
-let pendingPhone = "";
+let pendingEmail = "";
 let generatedOtp = "";
 let postImageDataUrls = [];
 let activeConversationId = null;
@@ -432,9 +432,9 @@ function clearStoredUser() {
 async function handleClientLogout() {
     apiRequest("/auth/signout", { method: "POST" }).catch(() => {});
     clearStoredUser();
-    pendingPhone = "";
+    pendingEmail = "";
     generatedOtp = "";
-    phoneInput.value = "";
+    if (emailInput) emailInput.value = "";
     otpInput.value = "";
     nameInput.value = "";
     await refreshRemoteState().catch(() => {});
@@ -810,14 +810,14 @@ function setAuthStep(step) {
 
     if (step === "phone") {
         authTitle.textContent = "تسجيل الدخول";
-        authDescription.textContent = "أدخل رقم الجوال للمتابعة إلى حسابك.";
-        phoneInput.focus();
+        authDescription.textContent = "أدخل بريدك الإلكتروني للمتابعة إلى حسابك.";
+        emailInput?.focus();
     }
 
     if (step === "otp") {
-        authTitle.textContent = "تأكيد رقم الجوال";
+        authTitle.textContent = "تأكيد البريد الإلكتروني";
         authDescription.textContent = "أدخل رمز التحقق المكون من 4 أرقام.";
-        otpPhonePreview.textContent = `+967 ${pendingPhone}`;
+        otpPhonePreview.textContent = pendingEmail;
         demoOtpCode.textContent = generatedOtp;
         otpInput.focus();
     }
@@ -838,7 +838,7 @@ function showAuthSuccess() {
     authTitle.textContent = "تم تسجيل الدخول";
     authDescription.textContent = "حسابك جاهز الآن داخل حراج اليمن.";
     authSuccessName.textContent = `أهلًا ${user?.name || ""}`;
-    authSuccessPhone.textContent = user ? `رقم الحساب: +967 ${user.phone}` : "";
+    authSuccessPhone.textContent = user?.email ? `البريد: ${user.email}` : "";
     authStepDots.forEach((dot) => dot.classList.remove("active"));
     authStepDots.forEach((dot) => dot.classList.add("done"));
 }
@@ -1896,9 +1896,6 @@ postCategory.addEventListener("change", validatePostDraft);
 postSubcategory.addEventListener("change", validatePostDraft);
 postCategory.addEventListener("change", syncSubcategoryOptions);
 
-phoneInput.addEventListener("input", () => {
-    phoneInput.value = phoneInput.value.replace(/\D/g, "").slice(0, 9);
-});
 
 profileAvatarInput?.addEventListener("change", () => {
     const current = getStoredUser();
@@ -1950,38 +1947,66 @@ otpInput.addEventListener("input", () => {
     otpInput.value = otpInput.value.replace(/\D/g, "").slice(0, 4);
 });
 
-authPhoneStep.addEventListener("submit", (e) => {
+authPhoneStep.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const cleanedPhone = phoneInput.value.replace(/\D/g, "");
-
-    if (cleanedPhone.length < 9) {
-        setAuthError("يرجى إدخال رقم جوال صحيح مكون من 9 أرقام.");
+    const email = emailInput.value.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        setAuthError("يرجى إدخال بريد إلكتروني صحيح.");
         return;
     }
-
-    pendingPhone = cleanedPhone;
-    generatedOtp = String(Math.floor(1000 + Math.random() * 9000));
-    otpInput.value = "";
+    const submitBtn = authPhoneStep.querySelector("button[type=submit]");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "جاري الإرسال...";
     setAuthError("");
-    setAuthStep("otp");
+    try {
+        await apiRequest("/auth/send-otp", {
+            method: "POST",
+            body: JSON.stringify({ email }),
+        });
+        pendingEmail = email;
+        otpInput.value = "";
+        setAuthStep("otp");
+    } catch (err) {
+        setAuthError(err.message || "تعذر إرسال الرمز. حاول مرة أخرى.");
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "إرسال رمز التحقق";
+    }
 });
 
-authOtpStep.addEventListener("submit", (e) => {
+authOtpStep.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (otpInput.value.length < 4) {
         setAuthError("أدخل رمز التحقق كاملًا.");
         return;
     }
-
-    if (otpInput.value !== generatedOtp) {
-        setAuthError("رمز التحقق غير صحيح. استخدم الرمز الظاهر في البطاقة.");
+    const submitBtn = authOtpStep.querySelector("button[type=submit]");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "جاري التحقق...";
+    setAuthError("");
+    try {
+        const res = await apiRequest("/auth/verify-otp", {
+            method: "POST",
+            body: JSON.stringify({ email: pendingEmail, otp: otpInput.value }),
+        });
+        if (res.signedIn) {
+            setStoredUser({ ...res.user, sessionToken: res.sessionToken });
+            await refreshRemoteState().catch(() => {});
+            updateAuthNav();
+            syncStoredPostsWithCurrentUser();
+            showAuthSuccess();
+        } else {
+            setAuthStep("name");
+        }
+    } catch (err) {
+        setAuthError(err.message || "رمز التحقق غير صحيح.");
         otpInput.value = "";
         otpInput.focus();
-        return;
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "تأكيد الرمز";
     }
-
-    setAuthError("");
-    setAuthStep("name");
 });
 
 authNameStep.addEventListener("submit", async (e) => {
@@ -1993,18 +2018,20 @@ authNameStep.addEventListener("submit", async (e) => {
         return;
     }
 
-    const payload = await apiRequest("/auth/signin", {
-        method: "POST",
-        body: JSON.stringify({ phone: pendingPhone, name: fullName }),
-    });
-
-    setStoredUser({ ...payload.user, sessionToken: payload.sessionToken });
-    await refreshRemoteState().catch(() => {});
-
-    updateAuthNav();
-    syncStoredPostsWithCurrentUser();
-    setAuthError("");
-    showAuthSuccess();
+    try {
+        const payload = await apiRequest("/auth/signin-email", {
+            method: "POST",
+            body: JSON.stringify({ email: pendingEmail, name: fullName }),
+        });
+        setStoredUser({ ...payload.user, sessionToken: payload.sessionToken });
+        await refreshRemoteState().catch(() => {});
+        updateAuthNav();
+        syncStoredPostsWithCurrentUser();
+        setAuthError("");
+        showAuthSuccess();
+    } catch (err) {
+        setAuthError(err.message || "تعذر تسجيل الدخول. حاول مرة أخرى.");
+    }
 });
 
 changePhoneBtn.addEventListener("click", () => {
@@ -2012,6 +2039,7 @@ changePhoneBtn.addEventListener("click", () => {
     setAuthError("");
     setAuthStep("phone");
 });
+
 
 logoutBtn.addEventListener("click", async () => {
     await handleClientLogout();

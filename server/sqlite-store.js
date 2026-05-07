@@ -74,6 +74,7 @@ const SAMPLE_LISTINGS = [
 ];
 
 const db = new DatabaseSync(DB_PATH);
+try { db.exec(`ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''`); } catch {}
 db.exec(`
   PRAGMA journal_mode = WAL;
   CREATE TABLE IF NOT EXISTS users (
@@ -175,6 +176,7 @@ function rowToUser(row) {
     id: row.id,
     name: row.name,
     phone: row.phone,
+    email: row.email || "",
     avatar: row.avatar || "",
   };
 }
@@ -184,6 +186,37 @@ function findUserByPhone(phone) {
   if (!cleanedPhone) return null;
   const row = db.prepare("SELECT * FROM users WHERE phone = ?").get(cleanedPhone);
   return rowToUser(row);
+}
+
+function findUserByEmail(email) {
+  const cleanEmail = String(email || "").trim().toLowerCase();
+  if (!cleanEmail) return null;
+  const row = db.prepare("SELECT * FROM users WHERE email = ?").get(cleanEmail);
+  return rowToUser(row);
+}
+
+function signInWithEmail(email, name) {
+  purgeExpired();
+  const cleanEmail = String(email || "").trim().toLowerCase();
+  const current = db.prepare("SELECT * FROM users WHERE email = ?").get(cleanEmail);
+  const timestamp = nowIso();
+  const userId = current?.id || makeId("user_");
+  const incomingName = String(name || "").trim();
+
+  if (current) {
+    const nextName = incomingName || current.name;
+    db.prepare("UPDATE users SET name = ?, updated_at = ? WHERE id = ?")
+      .run(nextName, timestamp, userId);
+  } else {
+    db.prepare(`
+      INSERT INTO users (id, name, phone, email, avatar, created_at, updated_at)
+      VALUES (?, ?, '', ?, '', ?, ?)
+    `).run(userId, incomingName, cleanEmail, timestamp, timestamp);
+  }
+
+  const user = rowToUser(db.prepare("SELECT * FROM users WHERE id = ?").get(userId));
+  const sessionToken = createSession(userId);
+  return { user, sessionToken };
 }
 
 function rowToListing(row) {
@@ -537,7 +570,9 @@ seedListingsIfNeeded();
 module.exports = {
   bootstrap,
   findUserByPhone,
+  findUserByEmail,
   signIn,
+  signInWithEmail,
   signOut,
   updateUser,
   addListing,

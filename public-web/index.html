@@ -185,20 +185,13 @@
                 </div>
 
                 <form id="authPhoneStep" class="auth-step">
-                    <label class="auth-label" for="phoneInput">رقم الجوال</label>
-                    <div class="auth-input-row">
-                        <input id="phoneInput" class="auth-input" type="tel" inputmode="numeric" maxlength="9" placeholder="7XXXXXXXX">
-                        <span class="auth-prefix">967+</span>
-                    </div>
+                    <label class="auth-label" for="emailInput">البريد الإلكتروني</label>
+                    <input id="emailInput" class="auth-input" type="email" placeholder="example@email.com" dir="ltr">
                     <button type="submit" class="auth-btn">إرسال رمز التحقق</button>
                 </form>
 
                 <form id="authOtpStep" class="auth-step hidden">
                     <p class="auth-note">أدخل الرمز المرسل إلى <strong id="otpPhonePreview"></strong></p>
-                    <div class="auth-code-box">
-                        <span>رمز التحقق التجريبي</span>
-                        <strong id="demoOtpCode">0000</strong>
-                    </div>
                     <label class="auth-label" for="otpInput">رمز التحقق</label>
                     <input id="otpInput" class="auth-input auth-input-center" type="tel" inputmode="numeric" maxlength="4" placeholder="----">
                     <button type="submit" class="auth-btn">تأكيد الرمز</button>

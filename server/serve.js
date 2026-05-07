@@ -15,7 +15,9 @@ const path = require("path");
 const {
   bootstrap,
   findUserByPhone,
+  findUserByEmail,
   signIn,
+  signInWithEmail,
   signOut,
   updateUser,
   addListing,
@@ -25,6 +27,8 @@ const {
   sendMessage,
   seedConversationOnce,
 } = require("./sqlite-store");
+const { sendOtpEmail } = require("./mailer");
+const { saveOtp, verifyOtp, consumeVerified } = require("./otp-store");
 
 const STATIC_ROOT = path.resolve(__dirname, "..", "public-web");
 const basePath = (process.env.BASE_PATH || "/").replace(/\/+$/, "");
@@ -177,6 +181,55 @@ async function handleApi(req, res, url) {
   if (url.pathname === "/api/auth/lookup" && req.method === "GET") {
     const phone = url.searchParams.get("phone") || "";
     sendJson(res, 200, { user: findUserByPhone(phone) });
+    return true;
+  }
+
+  if (url.pathname === "/api/auth/lookup-email" && req.method === "GET") {
+    const email = url.searchParams.get("email") || "";
+    sendJson(res, 200, { user: findUserByEmail(email) });
+    return true;
+  }
+
+  if (url.pathname === "/api/auth/send-otp" && req.method === "POST") {
+    const body = await readJsonBody(req);
+    const email = String(body.email || "").trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      sendJson(res, 400, { error: "بريد إلكتروني غير صحيح" });
+      return true;
+    }
+    const code = String(Math.floor(1000 + Math.random() * 9000));
+    saveOtp(email, code);
+    await sendOtpEmail(email, code);
+    sendJson(res, 200, { success: true });
+    return true;
+  }
+
+  if (url.pathname === "/api/auth/verify-otp" && req.method === "POST") {
+    const body = await readJsonBody(req);
+    const email = String(body.email || "").trim().toLowerCase();
+    const ok = verifyOtp(email, body.otp);
+    if (!ok) {
+      sendJson(res, 400, { error: "رمز التحقق غير صحيح أو انتهت صلاحيته" });
+      return true;
+    }
+    const user = findUserByEmail(email);
+    if (user?.name) {
+      const result = signInWithEmail(email, user.name);
+      sendJson(res, 200, { verified: true, signedIn: true, user: result.user, sessionToken: result.sessionToken });
+    } else {
+      sendJson(res, 200, { verified: true, signedIn: false });
+    }
+    return true;
+  }
+
+  if (url.pathname === "/api/auth/signin-email" && req.method === "POST") {
+    const body = await readJsonBody(req);
+    const email = String(body.email || "").trim().toLowerCase();
+    if (!consumeVerified(email)) {
+      sendJson(res, 401, { error: "يجب التحقق من البريد الإلكتروني أولاً" });
+      return true;
+    }
+    sendJson(res, 200, signInWithEmail(email, body.name));
     return true;
   }
 
