@@ -1348,25 +1348,30 @@ header {
   line-height: 1.8;
 }
 
-.auth-progress {
+.auth-tabs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1fr 1fr;
   gap: 0.5rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
-.auth-progress-dot {
-  height: 5px;
-  border-radius: 999px;
-  background: #dbe4ee;
+.auth-tab {
+  padding: 0.6rem;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: 'Cairo', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.auth-progress-dot.active {
+.auth-tab.active {
+  border-color: var(--primary-color);
   background: var(--primary-color);
-}
-
-.auth-progress-dot.done {
-  background: var(--secondary-color);
+  color: #fff;
 }
 
 .auth-step {

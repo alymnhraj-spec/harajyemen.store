@@ -178,30 +178,26 @@
                     <p id="authDescription">أدخل رقم الجوال للمتابعة إلى حسابك.</p>
                 </div>
 
-                <div class="auth-progress">
-                    <span class="auth-progress-dot active" data-step-dot="phone"></span>
-                    <span class="auth-progress-dot" data-step-dot="otp"></span>
-                    <span class="auth-progress-dot" data-step-dot="name"></span>
+                <div class="auth-tabs">
+                    <button type="button" class="auth-tab active" id="loginTabBtn">تسجيل الدخول</button>
+                    <button type="button" class="auth-tab" id="registerTabBtn">إنشاء حساب</button>
                 </div>
 
-                <form id="authPhoneStep" class="auth-step">
+                <form id="authForm" class="auth-step">
+                    <div id="authNameWrap" class="hidden">
+                        <label class="auth-label" for="nameInput">الاسم الكامل</label>
+                        <input id="nameInput" class="auth-input" type="text" placeholder="مثال: محمد أحمد علي">
+                    </div>
                     <label class="auth-label" for="emailInput">البريد الإلكتروني</label>
                     <input id="emailInput" class="auth-input" type="email" placeholder="example@email.com" dir="ltr">
-                    <button type="submit" class="auth-btn">إرسال رمز التحقق</button>
-                </form>
-
-                <form id="authOtpStep" class="auth-step hidden">
-                    <p class="auth-note">أدخل الرمز المرسل إلى <strong id="otpPhonePreview"></strong></p>
-                    <label class="auth-label" for="otpInput">رمز التحقق</label>
-                    <input id="otpInput" class="auth-input auth-input-center" type="tel" inputmode="numeric" maxlength="4" placeholder="----">
-                    <button type="submit" class="auth-btn">تأكيد الرمز</button>
-                    <button type="button" class="auth-link-btn" id="changePhoneBtn">تغيير الرقم</button>
-                </form>
-
-                <form id="authNameStep" class="auth-step hidden">
-                    <label class="auth-label" for="nameInput">الاسم الكامل</label>
-                    <input id="nameInput" class="auth-input" type="text" placeholder="مثال: محمد أحمد علي">
-                    <button type="submit" class="auth-btn">دخول</button>
+                    <label class="auth-label" for="passwordInput">كلمة المرور</label>
+                    <input id="passwordInput" class="auth-input" type="password" placeholder="••••••" dir="ltr">
+                    <div id="authConfirmWrap" class="hidden">
+                        <label class="auth-label" for="confirmPasswordInput">تأكيد كلمة المرور</label>
+                        <input id="confirmPasswordInput" class="auth-input" type="password" placeholder="••••••" dir="ltr">
+                    </div>
+                    <button type="submit" class="auth-btn" id="authSubmitBtn">تسجيل الدخول</button>
+                    <button type="button" class="auth-link-btn" id="forgotPasswordBtn">نسيت كلمة المرور؟</button>
                 </form>
 
                 <div id="authSuccessState" class="auth-step hidden auth-success">
@@ -474,6 +470,10 @@
         </div>
     </div>
 
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

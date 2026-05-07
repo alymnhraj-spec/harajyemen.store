@@ -84,6 +84,32 @@ const CONDITION_TYPES = [
     { id: "acceptable", name: "حالة مقبولة" },
 ];
 
+// ===== Firebase =====
+firebase.initializeApp({
+    apiKey: "AIzaSyD5RSQ2Z3rVJt3cwPrXI34muFh1d6HMG1w",
+    authDomain: "haraj-yemen-app.firebaseapp.com",
+    projectId: "haraj-yemen-app",
+    storageBucket: "haraj-yemen-app.firebasestorage.app",
+    messagingSenderId: "119432231710",
+    appId: "1:119432231710:web:20186535e0be5c61cf270f",
+});
+const fbAuth = firebase.auth();
+const fbDb = firebase.firestore();
+const fbStorage = firebase.storage();
+
+function getFirebaseErrorMessage(code) {
+    const msgs = {
+        "auth/user-not-found": "البريد الإلكتروني غير مسجل.",
+        "auth/wrong-password": "كلمة المرور غير صحيحة.",
+        "auth/invalid-credential": "البريد أو كلمة المرور غير صحيحة.",
+        "auth/email-already-in-use": "هذا البريد الإلكتروني مسجل بالفعل.",
+        "auth/weak-password": "كلمة المرور ضعيفة، يجب أن تكون 6 أحرف على الأقل.",
+        "auth/invalid-email": "البريد الإلكتروني غير صحيح.",
+        "auth/too-many-requests": "تم تجاوز عدد المحاولات. حاول لاحقًا.",
+    };
+    return msgs[code] || "حدث خطأ. حاول مرة أخرى.";
+}
+
 const listingsContainer = document.getElementById("listingsContainer");
 const categoriesList = document.getElementById("categoriesList");
 const subcategoriesBar = document.getElementById("subcategoriesBar");
@@ -102,24 +128,25 @@ const authModal = document.getElementById("authModal");
 const closeAuthModal = document.getElementById("closeAuthModal");
 const authTrigger = document.getElementById("authTrigger");
 const authTriggerText = document.getElementById("authTriggerText");
-const authPhoneStep = document.getElementById("authPhoneStep");
-const authOtpStep = document.getElementById("authOtpStep");
-const authNameStep = document.getElementById("authNameStep");
+const authForm = document.getElementById("authForm");
 const authSuccessState = document.getElementById("authSuccessState");
 const authTitle = document.getElementById("authTitle");
 const authDescription = document.getElementById("authDescription");
 const authError = document.getElementById("authError");
 const emailInput = document.getElementById("emailInput");
-const otpInput = document.getElementById("otpInput");
+const passwordInput = document.getElementById("passwordInput");
+const confirmPasswordInput = document.getElementById("confirmPasswordInput");
 const nameInput = document.getElementById("nameInput");
-const otpPhonePreview = document.getElementById("otpPhonePreview");
-const demoOtpCode = document.getElementById("demoOtpCode");
-const changePhoneBtn = document.getElementById("changePhoneBtn");
+const authNameWrap = document.getElementById("authNameWrap");
+const authConfirmWrap = document.getElementById("authConfirmWrap");
+const authSubmitBtn = document.getElementById("authSubmitBtn");
+const loginTabBtn = document.getElementById("loginTabBtn");
+const registerTabBtn = document.getElementById("registerTabBtn");
+const forgotPasswordBtn = document.getElementById("forgotPasswordBtn");
 const closeAuthSuccessBtn = document.getElementById("closeAuthSuccessBtn");
 const logoutBtn = document.getElementById("logoutBtn");
 const authSuccessName = document.getElementById("authSuccessName");
 const authSuccessPhone = document.getElementById("authSuccessPhone");
-const authStepDots = document.querySelectorAll("[data-step-dot]");
 const authRequiredTriggers = document.querySelectorAll("[data-auth-trigger]");
 const messagesTrigger = document.getElementById("messagesTrigger");
 const messagesModal = document.getElementById("messagesModal");
@@ -338,9 +365,7 @@ function requestNearbyLocation() {
     });
 }
 
-let authStep = "phone";
-let pendingEmail = "";
-let generatedOtp = "";
+let authMode = "login";
 let postImageDataUrls = [];
 let activeConversationId = null;
 let activeConversationMeta = null;
@@ -377,22 +402,24 @@ async function apiRequest(path, options = {}) {
 }
 
 async function refreshRemoteState() {
-    const data = await apiRequest(`/bootstrap`);
-    remoteState = {
-        listings: Array.isArray(data.listings) ? data.listings : [],
-        favorites: Array.isArray(data.favorites) ? data.favorites : [],
-        messages: Array.isArray(data.messages) ? data.messages : [],
-    };
-    remoteStateReady = true;
+    const snapshot = await fbDb.collection("posts")
+        .orderBy("createdAt", "desc")
+        .limit(200)
+        .get();
 
-    if (data.currentUser) {
-        setStoredUser({
-            ...(getStoredUser() || {}),
-            ...data.currentUser,
-        });
+    remoteState.listings = snapshot.docs.map((doc) => {
+        const data = doc.data();
+        const createdAt = data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString();
+        return { id: doc.id, ...data, createdAt };
+    });
+
+    const user = getStoredUser();
+    if (user?.id) {
+        remoteState.favorites = JSON.parse(localStorage.getItem(`haraj_favs_${user.id}`) || "[]");
     }
 
-    return data;
+    remoteStateReady = true;
+    return remoteState;
 }
 
 function setChatStatus(message = "") {
@@ -430,16 +457,15 @@ function clearStoredUser() {
 }
 
 async function handleClientLogout() {
-    apiRequest("/auth/signout", { method: "POST" }).catch(() => {});
+    await fbAuth.signOut().catch(() => {});
     clearStoredUser();
-    pendingEmail = "";
-    generatedOtp = "";
     if (emailInput) emailInput.value = "";
-    otpInput.value = "";
-    nameInput.value = "";
-    await refreshRemoteState().catch(() => {});
+    if (passwordInput) passwordInput.value = "";
+    if (nameInput) nameInput.value = "";
+    remoteState = { listings: [], favorites: [], messages: [] };
+    remoteStateReady = false;
     updateAuthNav();
-    setAuthStep("phone");
+    setAuthMode("login");
     closeMessages();
 
     const params = new URLSearchParams(window.location.search);
@@ -472,11 +498,19 @@ function renderProfileAvatarElement(user) {
 }
 
 function getStoredFavorites() {
-    return remoteStateReady ? remoteState.favorites.map(String) : [];
+    const user = getStoredUser();
+    if (!user?.id) return [];
+    try {
+        return JSON.parse(localStorage.getItem(`haraj_favs_${user.id}`) || "[]");
+    } catch { return []; }
 }
 
 function setStoredFavorites(items) {
     remoteState.favorites = Array.isArray(items) ? items.map(String) : [];
+    const user = getStoredUser();
+    if (user?.id) {
+        localStorage.setItem(`haraj_favs_${user.id}`, JSON.stringify(remoteState.favorites));
+    }
 }
 
 function getStoredMessages() {
@@ -554,15 +588,6 @@ function toggleFavoriteListing(id) {
     const key = String(id);
     const next = current.includes(key) ? current.filter((item) => item !== key) : [...current, key];
     setStoredFavorites(next);
-    const user = getStoredUser();
-    if (user?.id) {
-        apiRequest("/favorites/toggle", {
-            method: "POST",
-            body: JSON.stringify({ listingId: key }),
-        })
-            .then((payload) => setStoredFavorites(payload.favorites || next))
-            .catch(() => {});
-    }
     return next.includes(key);
 }
 
@@ -662,16 +687,10 @@ function syncSubcategoryOptions() {
 }
 
 function deleteStoredPostById(postId) {
-    const currentUser = getStoredUser();
-    const posts = getStoredPosts().filter((post) => String(post.id) !== String(postId));
-    setStoredPosts(posts);
-    if (currentUser?.id) {
-        apiRequest(`/listings/${encodeURIComponent(postId)}`, {
-            method: "DELETE",
-        })
-            .then(() => refreshRemoteState().then(() => renderCurrentListings()).catch(() => {}))
-            .catch(() => {});
-    }
+    remoteState.listings = remoteState.listings.filter((l) => String(l.id) !== String(postId));
+    fbDb.collection("posts").doc(String(postId)).delete()
+        .then(() => refreshRemoteState().then(() => renderCurrentListings()).catch(() => {}))
+        .catch(() => {});
 }
 
 function mapLegacyCategory(value) {
@@ -721,6 +740,12 @@ function mapLegacyGovernorate(value) {
 }
 
 function normalizeListing(item) {
+    const rawImages = Array.isArray(item.images) ? item.images : item.image ? [item.image] : [];
+    const images = rawImages.map((img) => {
+        if (typeof img === "string") return img;
+        return img?.uri || img?.url || img?.downloadURL || "";
+    }).filter(Boolean);
+
     return {
         ...item,
         category: mapLegacyCategory(item.category),
@@ -728,17 +753,15 @@ function normalizeListing(item) {
         userName: item.userName || item.author || "المستخدم",
         userPhone: item.userPhone || item.phone || "",
         userAvatar: item.userAvatar || "",
-        createdAt: item.createdAt || new Date().toISOString(),
+        createdAt: item.createdAt instanceof Date
+            ? item.createdAt.toISOString()
+            : (item.createdAt?.toDate?.()?.toISOString() || item.createdAt || new Date().toISOString()),
         priceType: item.priceType || "fixed",
         currency: item.currency || "yer",
         condition: item.condition || "good",
         views: item.views ?? 0,
         favorites: item.favorites ?? 0,
-        images: Array.isArray(item.images)
-            ? item.images
-            : item.image
-            ? [{ uri: item.image }]
-            : [],
+        images,
     };
 }
 
@@ -787,46 +810,31 @@ function updateAuthNav() {
     saveSearchBtn?.classList.toggle("active", getStoredFavorites().length > 0);
 }
 
-function setAuthStep(step) {
-    authStep = step;
-    authPhoneStep.classList.toggle("hidden", step !== "phone");
-    authOtpStep.classList.toggle("hidden", step !== "otp");
-    authNameStep.classList.toggle("hidden", step !== "name");
-    authSuccessState.classList.add("hidden");
+function setAuthMode(mode) {
+    authMode = mode;
+    const isRegister = mode === "register";
 
-    authStepDots.forEach((dot) => {
-        const dotStep = dot.getAttribute("data-step-dot");
-        dot.classList.remove("active", "done");
+    authForm?.classList.remove("hidden");
+    authSuccessState?.classList.add("hidden");
 
-        if (dotStep === step) {
-            dot.classList.add("active");
-        } else if (
-            (step === "otp" && dotStep === "phone") ||
-            (step === "name" && (dotStep === "phone" || dotStep === "otp"))
-        ) {
-            dot.classList.add("done");
-        }
-    });
+    authNameWrap?.classList.toggle("hidden", !isRegister);
+    authConfirmWrap?.classList.toggle("hidden", !isRegister);
+    forgotPasswordBtn?.classList.toggle("hidden", isRegister);
 
-    if (step === "phone") {
+    loginTabBtn?.classList.toggle("active", !isRegister);
+    registerTabBtn?.classList.toggle("active", isRegister);
+
+    if (authSubmitBtn) authSubmitBtn.textContent = isRegister ? "إنشاء حساب" : "تسجيل الدخول";
+
+    if (isRegister) {
+        authTitle.textContent = "إنشاء حساب جديد";
+        authDescription.textContent = "أدخل بياناتك لإنشاء حساب في حراج اليمن.";
+    } else {
         authTitle.textContent = "تسجيل الدخول";
-        authDescription.textContent = "أدخل بريدك الإلكتروني للمتابعة إلى حسابك.";
-        emailInput?.focus();
+        authDescription.textContent = "أدخل بريدك الإلكتروني وكلمة المرور للمتابعة.";
     }
 
-    if (step === "otp") {
-        authTitle.textContent = "تأكيد البريد الإلكتروني";
-        authDescription.textContent = "أدخل رمز التحقق المكون من 4 أرقام.";
-        otpPhonePreview.textContent = pendingEmail;
-        demoOtpCode.textContent = generatedOtp;
-        otpInput.focus();
-    }
-
-    if (step === "name") {
-        authTitle.textContent = "أكمل ملفك الشخصي";
-        authDescription.textContent = "أدخل اسمك الكامل ليظهر في حسابك وإعلاناتك.";
-        nameInput.focus();
-    }
+    emailInput?.focus();
 }
 
 function showAuthSuccess() {
@@ -854,7 +862,7 @@ function openAuthModal(mode = "login") {
         return;
     }
 
-    setAuthStep("phone");
+    setAuthMode("login");
 
     if (mode === "post") {
         authDescription.textContent = "سجل الدخول أولًا حتى تتمكن من إضافة إعلان جديد.";
@@ -1172,6 +1180,20 @@ function closeAgreementModalHandler() {
 }
 
 async function publishPostDraft(draft) {
+    const imageUrls = [];
+    for (const dataUrl of draft.images) {
+        if (dataUrl && dataUrl.startsWith("data:")) {
+            try {
+                const ref = fbStorage.ref(`posts/${Date.now()}_${Math.random().toString(36).slice(2)}`);
+                await ref.putString(dataUrl, "data_url");
+                const url = await ref.getDownloadURL();
+                imageUrls.push(url);
+            } catch { /* skip failed uploads */ }
+        } else if (dataUrl) {
+            imageUrls.push(dataUrl);
+        }
+    }
+
     const payload = {
         title: draft.title,
         price: draft.priceType === "free" || draft.priceType === "exchange" ? 0 : Number(draft.price) || 0,
@@ -1180,21 +1202,17 @@ async function publishPostDraft(draft) {
         subcategory: draft.subcategory,
         governorate: draft.governorate,
         condition: draft.condition,
-        phone: draft.user.phone || "770000000",
         userId: draft.user.id,
-        userAvatar: draft.user.avatar || "",
-        category: draft.category,
         userName: draft.user.name,
         userPhone: draft.user.phone || "",
-        image: draft.images[0] || "",
-        images: draft.images,
+        userAvatar: draft.user.avatar || "",
+        category: draft.category,
         description: draft.description,
+        images: imageUrls.map((url) => ({ uri: url })),
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     };
 
-    await apiRequest("/listings", {
-        method: "POST",
-        body: JSON.stringify(payload),
-    });
+    await fbDb.collection("posts").add(payload);
     await refreshRemoteState().catch(() => {});
 
     postForm.reset();
@@ -1385,44 +1403,8 @@ function matchesSubcategoryFilter(listing, activeSubcategory) {
 }
 
 function incrementListingViews(listingId) {
-    if (remoteStateReady) {
-        const currentListing = getListingById(listingId);
-        if (currentListing) {
-            remoteState.listings = remoteState.listings.map((listing) =>
-                String(listing.id) === String(listingId)
-                    ? { ...listing, views: (listing.views || 0) + 1 }
-                    : listing
-            );
-        }
-        apiRequest(`/listings/${encodeURIComponent(listingId)}/views`, { method: "POST" })
-            .then((payload) => {
-                if (payload.listing) {
-                    remoteState.listings = remoteState.listings.map((listing) =>
-                        String(listing.id) === String(listingId) ? payload.listing : listing
-                    );
-                }
-            })
-            .catch(() => {});
-        return getListingById(listingId)?.views ?? 0;
-    }
-
-    const viewKey = `haraj_viewed_${String(listingId)}`;
-
-    try {
-        if (sessionStorage.getItem(viewKey) === "1") {
-            return getListingById(listingId)?.views ?? 0;
-        }
-    } catch {}
-
-    const currentListing = getListingById(listingId);
-    const currentCount = currentListing?.views ?? 0;
-    const nextCount = currentCount + 1;
-
-    try {
-        sessionStorage.setItem(viewKey, "1");
-    } catch {}
-
-    return nextCount;
+    const listing = getListingById(listingId);
+    return (listing?.views || 0) + 1;
 }
 
 function renderCurrentListings() {
@@ -1897,13 +1879,10 @@ postSubcategory.addEventListener("change", validatePostDraft);
 postCategory.addEventListener("change", syncSubcategoryOptions);
 
 
-profileAvatarInput?.addEventListener("change", () => {
+profileAvatarInput?.addEventListener("change", async () => {
     const current = getStoredUser();
     const file = profileAvatarInput.files?.[0];
-
-    if (!current || !file) {
-        return;
-    }
+    if (!current || !file) return;
 
     if (!file.type.startsWith("image/")) {
         setProfileError("الملف المختار ليس صورة.");
@@ -1911,133 +1890,95 @@ profileAvatarInput?.addEventListener("change", () => {
         return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-        const src = typeof reader.result === "string" ? reader.result : "";
-        if (!src) {
-            setProfileError("تعذر قراءة الصورة المختارة.");
-            return;
-        }
-
-        const updatedUser = { ...current, avatar: src };
-        apiRequest(`/users/me`, {
-            method: "PATCH",
-            body: JSON.stringify({ avatar: src }),
-        })
-            .then(async (payload) => {
-                const nextUser = { ...updatedUser, ...(payload.user || {}) };
-                setStoredUser(nextUser);
-                await refreshRemoteState().catch(() => {});
-                syncStoredPostsWithCurrentUser();
-                renderProfileAvatarElement(nextUser);
-                setProfileError("");
-                profileAvatarInput.value = "";
-            })
-            .catch(() => {
-                setProfileError("تعذر حفظ الصورة الشخصية.");
-            });
-    };
-    reader.onerror = () => {
-        setProfileError("تعذر قراءة الصورة المختارة.");
-    };
-    reader.readAsDataURL(file);
+    try {
+        const ref = fbStorage.ref(`avatars/${current.id}`);
+        await ref.put(file);
+        const avatarUrl = await ref.getDownloadURL();
+        await fbDb.collection("users").doc(current.id).set({ avatar: avatarUrl }, { merge: true });
+        const updatedUser = { ...current, avatar: avatarUrl };
+        setStoredUser(updatedUser);
+        renderProfileAvatarElement(updatedUser);
+        setProfileError("");
+        profileAvatarInput.value = "";
+    } catch {
+        setProfileError("تعذر حفظ الصورة الشخصية.");
+    }
 });
 
-otpInput.addEventListener("input", () => {
-    otpInput.value = otpInput.value.replace(/\D/g, "").slice(0, 4);
-});
-
-authPhoneStep.addEventListener("submit", async (e) => {
+authForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const email = emailInput.value.trim().toLowerCase();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-        setAuthError("يرجى إدخال بريد إلكتروني صحيح.");
-        return;
-    }
-    const submitBtn = authPhoneStep.querySelector("button[type=submit]");
-    submitBtn.disabled = true;
-    submitBtn.textContent = "جاري الإرسال...";
-    setAuthError("");
-    try {
-        await apiRequest("/auth/send-otp", {
-            method: "POST",
-            body: JSON.stringify({ email }),
-        });
-        pendingEmail = email;
-        otpInput.value = "";
-        setAuthStep("otp");
-    } catch (err) {
-        setAuthError(err.message || "تعذر إرسال الرمز. حاول مرة أخرى.");
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = "إرسال رمز التحقق";
-    }
-});
+    const password = passwordInput.value;
+    const isRegister = authMode === "register";
 
-authOtpStep.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    if (otpInput.value.length < 4) {
-        setAuthError("أدخل رمز التحقق كاملًا.");
+    if (!email || !password) {
+        setAuthError("يرجى إدخال البريد الإلكتروني وكلمة المرور.");
         return;
     }
-    const submitBtn = authOtpStep.querySelector("button[type=submit]");
-    submitBtn.disabled = true;
-    submitBtn.textContent = "جاري التحقق...";
-    setAuthError("");
-    try {
-        const res = await apiRequest("/auth/verify-otp", {
-            method: "POST",
-            body: JSON.stringify({ email: pendingEmail, otp: otpInput.value }),
-        });
-        if (res.signedIn) {
-            setStoredUser({ ...res.user, sessionToken: res.sessionToken });
-            await refreshRemoteState().catch(() => {});
-            updateAuthNav();
-            syncStoredPostsWithCurrentUser();
-            showAuthSuccess();
-        } else {
-            setAuthStep("name");
+
+    if (isRegister) {
+        const name = nameInput.value.trim();
+        if (!hasRequiredFullName(name)) {
+            setAuthError("يجب إدخال الاسم الأول والاسم الأخير بشكل إجباري.");
+            return;
         }
-    } catch (err) {
-        setAuthError(err.message || "رمز التحقق غير صحيح.");
-        otpInput.value = "";
-        otpInput.focus();
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = "تأكيد الرمز";
+        if (password !== confirmPasswordInput.value) {
+            setAuthError("كلمتا المرور غير متطابقتين.");
+            return;
+        }
     }
-});
 
-authNameStep.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const fullName = nameInput.value.trim();
-
-    if (!hasRequiredFullName(fullName)) {
-        setAuthError("يجب إدخال الاسم الأول والاسم الأخير بشكل إجباري.");
-        return;
-    }
+    authSubmitBtn.disabled = true;
+    authSubmitBtn.textContent = "جاري...";
+    setAuthError("");
 
     try {
-        const payload = await apiRequest("/auth/signin-email", {
-            method: "POST",
-            body: JSON.stringify({ email: pendingEmail, name: fullName }),
-        });
-        setStoredUser({ ...payload.user, sessionToken: payload.sessionToken });
-        await refreshRemoteState().catch(() => {});
-        updateAuthNav();
-        syncStoredPostsWithCurrentUser();
-        setAuthError("");
+        if (isRegister) {
+            const name = nameInput.value.trim();
+            const cred = await fbAuth.createUserWithEmailAndPassword(email, password);
+            await fbDb.collection("users").doc(cred.user.uid).set({
+                name,
+                email,
+                phone: "",
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            });
+            await cred.user.updateProfile({ displayName: name });
+        } else {
+            await fbAuth.signInWithEmailAndPassword(email, password);
+        }
+        // onAuthStateChanged handles updating stored user
         showAuthSuccess();
     } catch (err) {
-        setAuthError(err.message || "تعذر تسجيل الدخول. حاول مرة أخرى.");
+        setAuthError(getFirebaseErrorMessage(err.code));
+    } finally {
+        authSubmitBtn.disabled = false;
+        authSubmitBtn.textContent = isRegister ? "إنشاء حساب" : "تسجيل الدخول";
     }
 });
 
-changePhoneBtn.addEventListener("click", () => {
-    otpInput.value = "";
+loginTabBtn?.addEventListener("click", () => {
     setAuthError("");
-    setAuthStep("phone");
+    setAuthMode("login");
+});
+
+registerTabBtn?.addEventListener("click", () => {
+    setAuthError("");
+    setAuthMode("register");
+});
+
+forgotPasswordBtn?.addEventListener("click", async () => {
+    const email = emailInput.value.trim();
+    if (!email) {
+        setAuthError("أدخل بريدك الإلكتروني أولاً.");
+        return;
+    }
+    try {
+        await fbAuth.sendPasswordResetEmail(email);
+        setAuthError("");
+        alert(`تم إرسال رابط إعادة تعيين كلمة المرور إلى ${email}`);
+    } catch (err) {
+        setAuthError(getFirebaseErrorMessage(err.code));
+    }
 });
 
 
@@ -2050,32 +1991,26 @@ saveProfileBtn?.addEventListener("click", async () => {
     const fullName = profileNameInput.value.trim();
     const phone = profilePhoneInput.value.replace(/\D/g, "").slice(0, 9);
 
-    if (!current) {
-        closeProfilePanel();
-        return;
-    }
+    if (!current) { closeProfilePanel(); return; }
 
     if (!hasRequiredFullName(fullName)) {
         setProfileError("يجب إدخال الاسم الأول والاسم الأخير بشكل إجباري.");
         return;
     }
 
-    if (phone.length < 9) {
-        setProfileError("يرجى إدخال رقم جوال صحيح.");
-        return;
+    try {
+        await fbDb.collection("users").doc(current.id).set(
+            { name: fullName, phone },
+            { merge: true }
+        );
+        const updatedUser = { ...current, name: fullName, phone };
+        setStoredUser(updatedUser);
+        updateAuthNav();
+        openProfileModal();
+        alert("تم حفظ التغييرات بنجاح.");
+    } catch {
+        setProfileError("تعذر حفظ التغييرات. حاول مرة أخرى.");
     }
-
-    const payload = await apiRequest(`/users/me`, {
-        method: "PATCH",
-        body: JSON.stringify({ name: fullName, phone }),
-    });
-    const updatedUser = { ...current, ...(payload.user || {}), name: fullName, phone };
-    setStoredUser(updatedUser);
-    await refreshRemoteState().catch(() => {});
-    updateAuthNav();
-    syncStoredPostsWithCurrentUser();
-    openProfileModal();
-    alert("تم حفظ التغييرات بنجاح.");
 });
 
 logoutProfileBtn?.addEventListener("click", async () => {
@@ -2297,11 +2232,28 @@ confirmAgreementBtn.addEventListener("click", async () => {
     await publishPostDraft(pendingPostDraft);
 });
 
+// Firebase auth state listener — runs on every login/logout
+fbAuth.onAuthStateChanged(async (firebaseUser) => {
+    if (firebaseUser) {
+        const userDoc = await fbDb.collection("users").doc(firebaseUser.uid).get().catch(() => null);
+        const userData = userDoc?.data() || {};
+        setStoredUser({
+            id: firebaseUser.uid,
+            email: firebaseUser.email,
+            name: userData.name || firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
+            phone: userData.phone || "",
+            avatar: userData.avatar || "",
+        });
+    } else {
+        clearStoredUser();
+    }
+    updateAuthNav();
+});
+
 // Initialize
 window.addEventListener("DOMContentLoaded", async () => {
     loader.style.display = "block";
-    
-    // Mobile Banner Logic
+
     const ua = navigator.userAgent;
     const isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
     if (isMobile) {
@@ -2318,8 +2270,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     renderConditionOptions();
     syncSubcategoryOptions();
     validatePostDraft();
+
     await refreshRemoteState().catch(() => {});
-    syncStoredPostsWithCurrentUser();
     purgeBlockedStoredPosts();
 
     const params = new URLSearchParams(window.location.search);
