@@ -1686,10 +1686,8 @@ header {
   }
 
   .nav-shell .logo {
-    order: 0;
+    order: -1;
     font-size: 1.15rem;
-    margin-left: 0;
-    margin-right: auto;
   }
 
   .nav-actions {
@@ -1698,7 +1696,6 @@ header {
     justify-content: flex-end;
     flex-wrap: nowrap;
     flex-shrink: 0;
-    margin-left: 0;
   }
 
   .search-bar {
