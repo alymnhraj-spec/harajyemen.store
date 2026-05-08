@@ -1504,6 +1504,10 @@ function renderListings(items) {
         `;
 
         card.addEventListener("click", () => {
+            if (!getStoredUser()) {
+                openAuthModal("login");
+                return;
+            }
             window.location.href = getListingUrl(item);
         });
 
