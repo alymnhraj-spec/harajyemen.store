@@ -1677,10 +1677,19 @@ header {
     gap: 0.45rem;
   }
 
-  /* Row 1: logo + icon buttons side by side */
+  /* Row 1: logo on left, nav buttons on right */
+  .nav-shell {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+  }
+
   .nav-shell .logo {
     order: 0;
     font-size: 1.15rem;
+    margin-left: 0;
+    margin-right: auto;
   }
 
   .nav-actions {
@@ -1689,14 +1698,7 @@ header {
     justify-content: flex-end;
     flex-wrap: nowrap;
     flex-shrink: 0;
-  }
-
-  /* Combine logo & actions into one row */
-  .nav-shell {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
+    margin-left: 0;
   }
 
   .search-bar {
