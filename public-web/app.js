@@ -1573,7 +1573,7 @@ function renderListingPage(item) {
                         <span class="listing-seller-avatar ${sellerAvatar ? "has-image" : ""}" ${sellerAvatar ? `style="background-image: url('${sellerAvatar.replace(/'/g, "\\'")}');"` : ""}>${sellerAvatar ? "" : (listingWithViews.userName || "م").charAt(0)}</span>
                         <h4>المعلن: ${listingWithViews.userName}</h4>
                     </div>
-                    <p>${sellerPhone ? `رقم الجوال: +${sellerPhoneIntl}` : "التواصل مع المعلن متاح عبر المنصة والاتصال المباشر."}</p>
+                    <p>التواصل مع المعلن متاح عبر المنصة والاتصال المباشر.</p>
                     <div class="details-actions-bar">
                         <button id="messageSellerBtn" class="details-action-btn">
                             <i class="fa-regular fa-envelope"></i> مراسلة
