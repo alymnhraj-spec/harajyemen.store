@@ -1703,8 +1703,8 @@ header {
   }
 
   .card {
-    grid-template-columns: 100px 1fr;
-    min-height: 138px;
+    grid-template-columns: 130px 1fr;
+    min-height: 150px;
   }
 
   .card-title {
