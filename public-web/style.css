@@ -1707,8 +1707,10 @@ header {
   }
 
   .search-bar input {
-    height: 38px;
-    font-size: 0.88rem;
+    height: 32px;
+    font-size: 0.82rem;
+    padding: 0 0.75rem;
+    padding-right: 2.5rem;
   }
 
   /* Icon-only nav buttons on mobile */
