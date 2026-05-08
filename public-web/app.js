@@ -2198,11 +2198,6 @@ fbAuth.onAuthStateChanged(async (firebaseUser) => {
 window.addEventListener("DOMContentLoaded", async () => {
     loader.style.display = "block";
 
-    const ua = navigator.userAgent;
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
-    if (isMobile) {
-        document.getElementById("mobileAppBanner").style.display = "block";
-    }
 
     updateAuthNav();
     renderCategoryBar();
