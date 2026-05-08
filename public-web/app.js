@@ -869,6 +869,8 @@ function setAuthMode(mode) {
 
     authForm?.classList.remove("hidden");
     authSuccessState?.classList.add("hidden");
+    loginTabBtn?.classList.remove("hidden");
+    registerTabBtn?.classList.remove("hidden");
 
     authNameWrap?.classList.toggle("hidden", !isRegister);
     authConfirmWrap?.classList.toggle("hidden", !isRegister);
@@ -894,6 +896,8 @@ function showAuthSuccess() {
     const user = getStoredUser();
     authForm?.classList.add("hidden");
     authSuccessState.classList.remove("hidden");
+    loginTabBtn?.classList.add("hidden");
+    registerTabBtn?.classList.add("hidden");
     authTitle.textContent = "تم تسجيل الدخول";
     authDescription.textContent = "حسابك جاهز الآن داخل حراج اليمن.";
     authSuccessName.textContent = `أهلًا ${user?.name || ""}`;
