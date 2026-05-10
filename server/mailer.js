@@ -4,7 +4,10 @@ const GMAIL_USER = process.env.GMAIL_USER || "alymnhraj@gmail.com";
 const GMAIL_PASS = process.env.GMAIL_PASS || "psearpitjgqisqzw";
 
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false,
+  family: 4,
   auth: {
     user: GMAIL_USER,
     pass: GMAIL_PASS,
