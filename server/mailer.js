@@ -1,20 +1,32 @@
 const nodemailer = require("nodemailer");
+const dns = require("dns").promises;
 
 const GMAIL_USER = process.env.GMAIL_USER || "alymnhraj@gmail.com";
 const GMAIL_PASS = process.env.GMAIL_PASS || "psearpitjgqisqzw";
 
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
-  family: 4,
-  auth: {
-    user: GMAIL_USER,
-    pass: GMAIL_PASS,
-  },
-});
+let smtpIpv4 = null;
+
+async function resolveSmtpHost() {
+  if (!smtpIpv4) {
+    try {
+      const { address } = await dns.lookup("smtp.gmail.com", { family: 4 });
+      smtpIpv4 = address;
+    } catch {
+      smtpIpv4 = "smtp.gmail.com";
+    }
+  }
+  return smtpIpv4;
+}
 
 async function sendOtpEmail(toEmail, otp) {
+  const smtpHost = await resolveSmtpHost();
+  const transporter = nodemailer.createTransport({
+    host: smtpHost,
+    port: 587,
+    secure: false,
+    auth: { user: GMAIL_USER, pass: GMAIL_PASS },
+    tls: { servername: "smtp.gmail.com" },
+  });
   await transporter.sendMail({
     from: `"حراج اليمن" <${GMAIL_USER}>`,
     to: toEmail,
