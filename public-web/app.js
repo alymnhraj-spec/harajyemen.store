@@ -370,6 +370,8 @@ function requestNearbyLocation() {
 }
 
 let authMode = "login";
+let pendingOtpEmail = "";
+let pendingOtpFirebaseUser = null;
 let postImageDataUrls = [];
 let activeConversationId = null;
 let activeConversationMeta = null;
@@ -921,6 +923,8 @@ function setAuthMode(mode) {
 
     authForm?.classList.remove("hidden");
     authSuccessState?.classList.add("hidden");
+    document.getElementById("authOtpStep")?.classList.add("hidden");
+    hideOtpStep();
     loginTabBtn?.classList.remove("hidden");
     registerTabBtn?.classList.remove("hidden");
 
@@ -942,6 +946,40 @@ function setAuthMode(mode) {
     }
 
     emailInput?.focus();
+}
+
+async function showOtpStep(email, firebaseUser) {
+    pendingOtpEmail = email;
+    pendingOtpFirebaseUser = firebaseUser;
+
+    authForm?.classList.add("hidden");
+    authSuccessState?.classList.add("hidden");
+    document.getElementById("authOtpStep")?.classList.remove("hidden");
+    loginTabBtn?.classList.add("hidden");
+    registerTabBtn?.classList.add("hidden");
+
+    authTitle.textContent = "رمز التحقق";
+    authDescription.textContent = `أدخل الرمز المرسل إلى ${email}`;
+    setAuthError("");
+
+    // clear boxes and focus first
+    const boxes = document.querySelectorAll(".otp-box");
+    boxes.forEach(b => { b.value = ""; b.classList.remove("filled"); });
+    boxes[0]?.focus();
+
+    try {
+        await fetch(`${API_BASE}/auth/send-otp`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ email }),
+        });
+    } catch (_) {}
+}
+
+function hideOtpStep() {
+    document.getElementById("authOtpStep")?.classList.add("hidden");
+    pendingOtpEmail = "";
+    pendingOtpFirebaseUser = null;
 }
 
 function showAuthSuccess() {
@@ -978,6 +1016,7 @@ function closeAuth() {
     authModal.style.display = "none";
     setAuthError("");
     setBodyScrollLocked(false);
+    hideOtpStep();
 }
 
 function openMessagesModal() {
@@ -1971,45 +2010,22 @@ authForm?.addEventListener("submit", async (e) => {
         if (isRegister) {
             const name = nameInput.value.trim();
             const cred = await fbAuth.createUserWithEmailAndPassword(email, password);
-            await cred.user.sendEmailVerification();
             fbDb.collection("users").doc(cred.user.uid).set({
-                name,
-                email,
-                phone: "",
+                name, email, phone: "",
                 created_at: firebase.firestore.FieldValue.serverTimestamp(),
             }).catch(() => {});
             cred.user.updateProfile({ displayName: name }).catch(() => {});
-            await fbAuth.signOut();
-            setAuthError("");
             authSubmitBtn.disabled = false;
             authSubmitBtn.textContent = "إنشاء حساب";
-            authTitle.textContent = "تحقق من بريدك الإلكتروني";
-            authDescription.textContent = `تم إرسال رابط التحقق إلى ${email}. يرجى فتح بريدك والضغط على الرابط ثم تسجيل الدخول.`;
-            authForm?.classList.add("hidden");
-            loginTabBtn?.classList.add("hidden");
-            registerTabBtn?.classList.add("hidden");
-            return;
+            await showOtpStep(email, cred.user);
         } else {
             const cred = await fbAuth.signInWithEmailAndPassword(email, password);
-            if (!cred.user.emailVerified) {
-                await cred.user.sendEmailVerification().catch(() => {});
-                await fbAuth.signOut();
-                setAuthError(`يجب التحقق من بريدك الإلكتروني أولاً. تم إرسال رابط التحقق إلى ${email} — افتح بريدك واضغط على الرابط ثم سجّل الدخول.`);
-                return;
-            }
-            setStoredUser({
-                id: cred.user.uid,
-                email: cred.user.email,
-                name: cred.user.displayName || cred.user.email?.split("@")[0] || "مستخدم",
-                phone: "",
-                avatar: "",
-            });
+            authSubmitBtn.disabled = false;
+            authSubmitBtn.textContent = "تسجيل الدخول";
+            await showOtpStep(email, cred.user);
         }
-        showAuthSuccess();
-        updateAuthNav();
     } catch (err) {
         setAuthError(getFirebaseErrorMessage(err.code) + (err.code ? "" : ` (${err.message || JSON.stringify(err)})`));
-    } finally {
         authSubmitBtn.disabled = false;
         authSubmitBtn.textContent = isRegister ? "إنشاء حساب" : "تسجيل الدخول";
     }
@@ -2040,6 +2056,95 @@ forgotPasswordBtn?.addEventListener("click", async () => {
     }
 });
 
+
+// ===== OTP handlers =====
+document.getElementById("otpBoxes")?.addEventListener("input", (e) => {
+    const box = e.target;
+    if (!/^\d$/.test(box.value)) { box.value = ""; return; }
+    box.classList.add("filled");
+    const boxes = [...document.querySelectorAll(".otp-box")];
+    const idx = boxes.indexOf(box);
+    if (idx < boxes.length - 1) boxes[idx + 1].focus();
+});
+
+document.getElementById("otpBoxes")?.addEventListener("keydown", (e) => {
+    const boxes = [...document.querySelectorAll(".otp-box")];
+    const idx = boxes.indexOf(e.target);
+    if (e.key === "Backspace") {
+        e.target.value = "";
+        e.target.classList.remove("filled");
+        if (idx > 0) boxes[idx - 1].focus();
+    } else if (e.key === "ArrowRight" && idx > 0) {
+        boxes[idx - 1].focus();
+    } else if (e.key === "ArrowLeft" && idx < boxes.length - 1) {
+        boxes[idx + 1].focus();
+    }
+});
+
+document.getElementById("otpSubmitBtn")?.addEventListener("click", async () => {
+    const boxes = [...document.querySelectorAll(".otp-box")];
+    const code = boxes.map(b => b.value).join("");
+    if (code.length !== 4) { setAuthError("أدخل الرمز المكون من 4 أرقام."); return; }
+
+    const btn = document.getElementById("otpSubmitBtn");
+    btn.disabled = true;
+    btn.textContent = "جاري التحقق...";
+    setAuthError("");
+
+    try {
+        const resp = await fetch(`${API_BASE}/auth/verify-otp`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ email: pendingOtpEmail, otp: code }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) { setAuthError(data.error || "رمز غير صحيح."); return; }
+
+        // OTP verified — store Firebase user info and show success
+        const fbUser = pendingOtpFirebaseUser || fbAuth.currentUser;
+        if (fbUser) {
+            const userDoc = await fbDb.collection("users").doc(fbUser.uid).get().catch(() => null);
+            const ud = userDoc?.data() || {};
+            setStoredUser({
+                id: fbUser.uid,
+                email: fbUser.email,
+                name: ud.name || fbUser.displayName || fbUser.email?.split("@")[0] || "مستخدم",
+                phone: ud.phone || "",
+                avatar: ud.avatar || "",
+            });
+        }
+        hideOtpStep();
+        showAuthSuccess();
+        updateAuthNav();
+    } catch (_) {
+        setAuthError("حدث خطأ، حاول مرة أخرى.");
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "تحقق";
+    }
+});
+
+document.getElementById("otpResendBtn")?.addEventListener("click", async () => {
+    const btn = document.getElementById("otpResendBtn");
+    btn.disabled = true;
+    btn.textContent = "جاري الإرسال...";
+    try {
+        await fetch(`${API_BASE}/auth/send-otp`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ email: pendingOtpEmail }),
+        });
+        setAuthError("");
+        btn.textContent = "تم الإرسال ✓";
+        setTimeout(() => { btn.textContent = "لم يصل الرمز؟ أعد الإرسال"; btn.disabled = false; }, 3000);
+        const boxes = document.querySelectorAll(".otp-box");
+        boxes.forEach(b => { b.value = ""; b.classList.remove("filled"); });
+        boxes[0]?.focus();
+    } catch (_) {
+        btn.textContent = "لم يصل الرمز؟ أعد الإرسال";
+        btn.disabled = false;
+    }
+});
 
 logoutBtn.addEventListener("click", async () => {
     await handleClientLogout();

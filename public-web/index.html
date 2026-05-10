@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>حراج اليمن | السوق اليمني المفتوح</title>
-    <link rel="stylesheet" href="style.css?v=3">
+    <link rel="stylesheet" href="style.css?v=4">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script>
         // Expo Go Deep Link logic
@@ -191,6 +191,18 @@
                     <button type="submit" class="auth-btn" id="authSubmitBtn">تسجيل الدخول</button>
                     <button type="button" class="auth-link-btn" id="forgotPasswordBtn">نسيت كلمة المرور؟</button>
                 </form>
+
+                <div id="authOtpStep" class="auth-step hidden">
+                    <p class="auth-otp-hint">تم إرسال رمز التحقق المكون من 4 أرقام إلى بريدك الإلكتروني</p>
+                    <div class="otp-boxes" id="otpBoxes">
+                        <input class="otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="one-time-code">
+                        <input class="otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
+                        <input class="otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
+                        <input class="otp-box" type="text" maxlength="1" inputmode="numeric" pattern="[0-9]">
+                    </div>
+                    <button type="button" class="auth-btn" id="otpSubmitBtn">تحقق</button>
+                    <button type="button" class="auth-link-btn" id="otpResendBtn">لم يصل الرمز؟ أعد الإرسال</button>
+                </div>
 
                 <div id="authSuccessState" class="auth-step hidden auth-success">
                     <div class="auth-success-icon"><i class="fa-solid fa-circle-check"></i></div>
@@ -466,6 +478,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
-    <script src="app.js?v=4"></script>
+    <script src="app.js?v=5"></script>
 </body>
 </html>
