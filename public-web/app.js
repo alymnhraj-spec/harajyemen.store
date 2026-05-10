@@ -1938,14 +1938,7 @@ authForm?.addEventListener("submit", async (e) => {
             registerTabBtn?.classList.add("hidden");
             return;
         } else {
-            const cred = await fbAuth.signInWithEmailAndPassword(email, password);
-            if (!cred.user.emailVerified) {
-                await fbAuth.signOut();
-                setAuthError("يجب التحقق من بريدك الإلكتروني أولاً. تحقق من صندوق الوارد وافتح رابط التحقق.");
-                authSubmitBtn.disabled = false;
-                authSubmitBtn.textContent = "تسجيل الدخول";
-                return;
-            }
+            await fbAuth.signInWithEmailAndPassword(email, password);
         }
         showAuthSuccess();
     } catch (err) {
