@@ -406,21 +406,73 @@ async function apiRequest(path, options = {}) {
     return payload;
 }
 
-async function refreshRemoteState() {
-    const snapshot = await fbDb.collection("posts").limit(200).get();
+function parseFirestoreValue(val) {
+    if (val == null) return null;
+    if ("stringValue" in val) return val.stringValue;
+    if ("integerValue" in val) return parseInt(val.integerValue, 10);
+    if ("doubleValue" in val) return val.doubleValue;
+    if ("booleanValue" in val) return val.booleanValue;
+    if ("timestampValue" in val) return val.timestampValue;
+    if ("nullValue" in val) return null;
+    if ("arrayValue" in val) return (val.arrayValue.values || []).map(parseFirestoreValue);
+    if ("mapValue" in val) {
+        const obj = {};
+        for (const [k, v] of Object.entries(val.mapValue.fields || {})) {
+            obj[k] = parseFirestoreValue(v);
+        }
+        return obj;
+    }
+    return null;
+}
 
-    remoteState.listings = snapshot.docs
-        .map((doc) => ({ id: doc.id, ...doc.data() }))
-        .filter((item) => item.status !== "deleted" && !item.deleted_by_admin)
-        .sort((a, b) => {
-            const getTs = (item) => {
-                const ts = item.created_at || item.createdAt;
-                if (!ts) return 0;
-                if (ts?.toDate) return ts.toDate().getTime();
-                return new Date(ts).getTime();
-            };
-            return getTs(b) - getTs(a);
-        });
+function parseFirestoreDoc(doc) {
+    const id = doc.name.split("/").pop();
+    const result = { id };
+    for (const [key, val] of Object.entries(doc.fields || {})) {
+        result[key] = parseFirestoreValue(val);
+    }
+    return result;
+}
+
+function sortListingsByDate(listings) {
+    return listings.sort((a, b) => {
+        const getTs = (item) => {
+            const ts = item.created_at || item.createdAt;
+            if (!ts) return 0;
+            if (ts?.toDate) return ts.toDate().getTime();
+            return new Date(ts).getTime();
+        };
+        return getTs(b) - getTs(a);
+    });
+}
+
+async function refreshRemoteState() {
+    let loaded = false;
+
+    try {
+        const url = `https://firestore.googleapis.com/v1/projects/haraj-yemen-app/databases/(default)/documents/posts?pageSize=200&key=AIzaSyD5RSQ2Z3rVJt3cwPrXI34muFh1d6HMG1w`;
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        const docs = (data.documents || []).map(parseFirestoreDoc);
+        remoteState.listings = sortListingsByDate(
+            docs.filter((item) => item.status !== "deleted" && !item.deleted_by_admin)
+        );
+        loaded = true;
+    } catch (_) {}
+
+    if (!loaded) {
+        try {
+            const snapshot = await fbDb.collection("posts").limit(200).get();
+            remoteState.listings = sortListingsByDate(
+                snapshot.docs
+                    .map((doc) => ({ id: doc.id, ...doc.data() }))
+                    .filter((item) => item.status !== "deleted" && !item.deleted_by_admin)
+            );
+        } catch (sdkErr) {
+            console.error("refreshRemoteState error:", sdkErr);
+        }
+    }
 
     const user = getStoredUser();
     if (user?.id) {
@@ -1938,9 +1990,19 @@ authForm?.addEventListener("submit", async (e) => {
             registerTabBtn?.classList.add("hidden");
             return;
         } else {
-            await fbAuth.signInWithEmailAndPassword(email, password);
+            const cred = await fbAuth.signInWithEmailAndPassword(email, password);
+            if (!getStoredUser()) {
+                setStoredUser({
+                    id: cred.user.uid,
+                    email: cred.user.email,
+                    name: cred.user.displayName || cred.user.email?.split("@")[0] || "مستخدم",
+                    phone: "",
+                    avatar: "",
+                });
+            }
         }
         showAuthSuccess();
+        updateAuthNav();
     } catch (err) {
         setAuthError(getFirebaseErrorMessage(err.code) + (err.code ? "" : ` (${err.message || JSON.stringify(err)})`));
     } finally {
