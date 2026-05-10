@@ -1,22 +1,26 @@
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
-const pending = new Map();   // email -> { code, expiresAt }
-const verified = new Set();  // emails that passed OTP check
+const pending = new Map();        // key -> { code, expiresAt }
+const verified = new Set();       // emails verified for login
+const resetVerified = new Set();  // emails verified for password reset
 
-function saveOtp(email, code) {
-  pending.set(email, { code, expiresAt: Date.now() + OTP_TTL_MS });
+function saveOtp(email, code, purpose) {
+  const key = purpose === "reset" ? email + ":reset" : email;
+  pending.set(key, { code, expiresAt: Date.now() + OTP_TTL_MS });
 }
 
-function verifyOtp(email, code) {
-  const entry = pending.get(email);
+function verifyOtp(email, code, purpose) {
+  const key = purpose === "reset" ? email + ":reset" : email;
+  const entry = pending.get(key);
   if (!entry) return false;
   if (Date.now() > entry.expiresAt) {
-    pending.delete(email);
+    pending.delete(key);
     return false;
   }
   if (entry.code !== String(code)) return false;
-  pending.delete(email);
-  verified.add(email);
+  pending.delete(key);
+  if (purpose === "reset") resetVerified.add(email);
+  else verified.add(email);
   return true;
 }
 
@@ -26,4 +30,10 @@ function consumeVerified(email) {
   return ok;
 }
 
-module.exports = { saveOtp, verifyOtp, consumeVerified };
+function consumeResetVerified(email) {
+  const ok = resetVerified.has(email);
+  resetVerified.delete(email);
+  return ok;
+}
+
+module.exports = { saveOtp, verifyOtp, consumeVerified, consumeResetVerified };

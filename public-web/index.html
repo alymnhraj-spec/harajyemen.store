@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>حراج اليمن | السوق اليمني المفتوح</title>
-    <link rel="stylesheet" href="style.css?v=4">
+    <link rel="stylesheet" href="style.css?v=5">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script>
         // Expo Go Deep Link logic
@@ -202,6 +202,19 @@
                     </div>
                     <button type="button" class="auth-btn" id="otpSubmitBtn">تحقق</button>
                     <button type="button" class="auth-link-btn" id="otpResendBtn">لم يصل الرمز؟ أعد الإرسال</button>
+                </div>
+
+                <div id="authResetStep" class="auth-step hidden">
+                    <p class="auth-otp-hint">أدخل كلمة المرور الجديدة</p>
+                    <div class="form-group" style="text-align:right">
+                        <label class="auth-label" for="resetNewPassword">كلمة المرور الجديدة</label>
+                        <input id="resetNewPassword" class="auth-input" type="password" placeholder="••••••" dir="ltr" autocomplete="new-password">
+                    </div>
+                    <div class="form-group" style="text-align:right">
+                        <label class="auth-label" for="resetConfirmPassword">تأكيد كلمة المرور</label>
+                        <input id="resetConfirmPassword" class="auth-input" type="password" placeholder="••••••" dir="ltr" autocomplete="new-password">
+                    </div>
+                    <button type="button" class="auth-btn" id="resetSubmitBtn">تغيير كلمة المرور</button>
                 </div>
 
                 <div id="authSuccessState" class="auth-step hidden auth-success">
@@ -478,6 +491,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
-    <script src="app.js?v=5"></script>
+    <script src="app.js?v=6"></script>
 </body>
 </html>

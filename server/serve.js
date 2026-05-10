@@ -28,7 +28,8 @@ const {
   seedConversationOnce,
 } = require("./sqlite-store");
 const { sendOtpEmail } = require("./mailer");
-const { saveOtp, verifyOtp, consumeVerified } = require("./otp-store");
+const { saveOtp, verifyOtp, consumeVerified, consumeResetVerified } = require("./otp-store");
+const { getAdmin } = require("./firebase-admin");
 
 const STATIC_ROOT = path.resolve(__dirname, "..", "public-web");
 const basePath = (process.env.BASE_PATH || "/").replace(/\/+$/, "");
@@ -197,12 +198,13 @@ async function handleApi(req, res, url) {
   if (url.pathname === "/api/auth/send-otp" && req.method === "POST") {
     const body = await readJsonBody(req);
     const email = String(body.email || "").trim().toLowerCase();
+    const purpose = String(body.purpose || "login");
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       sendJson(res, 400, { error: "بريد إلكتروني غير صحيح" });
       return true;
     }
     const code = String(Math.floor(1000 + Math.random() * 9000));
-    saveOtp(email, code);
+    saveOtp(email, code, purpose);
     await sendOtpEmail(email, code);
     sendJson(res, 200, { success: true });
     return true;
@@ -211,9 +213,14 @@ async function handleApi(req, res, url) {
   if (url.pathname === "/api/auth/verify-otp" && req.method === "POST") {
     const body = await readJsonBody(req);
     const email = String(body.email || "").trim().toLowerCase();
-    const ok = verifyOtp(email, body.otp);
+    const purpose = String(body.purpose || "login");
+    const ok = verifyOtp(email, body.otp, purpose);
     if (!ok) {
       sendJson(res, 400, { error: "رمز التحقق غير صحيح أو انتهت صلاحيته" });
+      return true;
+    }
+    if (purpose === "reset") {
+      sendJson(res, 200, { verified: true });
       return true;
     }
     const user = findUserByEmail(email);
@@ -222,6 +229,38 @@ async function handleApi(req, res, url) {
       sendJson(res, 200, { verified: true, signedIn: true, user: result.user, sessionToken: result.sessionToken });
     } else {
       sendJson(res, 200, { verified: true, signedIn: false });
+    }
+    return true;
+  }
+
+  if (url.pathname === "/api/auth/reset-password" && req.method === "POST") {
+    const body = await readJsonBody(req);
+    const email = String(body.email || "").trim().toLowerCase();
+    const newPassword = String(body.newPassword || "");
+    if (!consumeResetVerified(email)) {
+      sendJson(res, 401, { error: "يجب التحقق من البريد الإلكتروني أولاً" });
+      return true;
+    }
+    if (!newPassword || newPassword.length < 6) {
+      sendJson(res, 400, { error: "كلمة المرور يجب أن تكون 6 أحرف على الأقل" });
+      return true;
+    }
+    const admin = getAdmin();
+    if (!admin) {
+      sendJson(res, 503, { error: "خدمة إعادة تعيين كلمة المرور غير متاحة حالياً" });
+      return true;
+    }
+    try {
+      const userRecord = await admin.auth().getUserByEmail(email);
+      await admin.auth().updateUser(userRecord.uid, { password: newPassword });
+      sendJson(res, 200, { success: true });
+    } catch (err) {
+      if (err.code === "auth/user-not-found") {
+        sendJson(res, 404, { error: "لا يوجد حساب بهذا البريد الإلكتروني" });
+      } else {
+        console.error("reset-password error:", err.message);
+        sendJson(res, 500, { error: "فشل تغيير كلمة المرور" });
+      }
     }
     return true;
   }

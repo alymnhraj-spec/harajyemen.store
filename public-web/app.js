@@ -372,6 +372,7 @@ function requestNearbyLocation() {
 let authMode = "login";
 let pendingOtpEmail = "";
 let pendingOtpFirebaseUser = null;
+let forgotPasswordMode = false;
 let postImageDataUrls = [];
 let activeConversationId = null;
 let activeConversationMeta = null;
@@ -948,12 +949,13 @@ function setAuthMode(mode) {
     emailInput?.focus();
 }
 
-async function showOtpStep(email, firebaseUser) {
+async function showOtpStep(email, firebaseUser, purpose) {
     pendingOtpEmail = email;
     pendingOtpFirebaseUser = firebaseUser;
 
     authForm?.classList.add("hidden");
     authSuccessState?.classList.add("hidden");
+    document.getElementById("authResetStep")?.classList.add("hidden");
     document.getElementById("authOtpStep")?.classList.remove("hidden");
     loginTabBtn?.classList.add("hidden");
     registerTabBtn?.classList.add("hidden");
@@ -962,7 +964,6 @@ async function showOtpStep(email, firebaseUser) {
     authDescription.textContent = `أدخل الرمز المرسل إلى ${email}`;
     setAuthError("");
 
-    // clear boxes and focus first
     const boxes = document.querySelectorAll(".otp-box");
     boxes.forEach(b => { b.value = ""; b.classList.remove("filled"); });
     boxes[0]?.focus();
@@ -971,15 +972,17 @@ async function showOtpStep(email, firebaseUser) {
         await fetch(`${API_BASE}/auth/send-otp`, {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ email }),
+            body: JSON.stringify({ email, purpose: purpose || "login" }),
         });
     } catch (_) {}
 }
 
 function hideOtpStep() {
     document.getElementById("authOtpStep")?.classList.add("hidden");
+    document.getElementById("authResetStep")?.classList.add("hidden");
     pendingOtpEmail = "";
     pendingOtpFirebaseUser = null;
+    forgotPasswordMode = false;
 }
 
 function showAuthSuccess() {
@@ -2047,13 +2050,8 @@ forgotPasswordBtn?.addEventListener("click", async () => {
         setAuthError("أدخل بريدك الإلكتروني أولاً.");
         return;
     }
-    try {
-        await fbAuth.sendPasswordResetEmail(email);
-        setAuthError("");
-        alert(`تم إرسال رابط إعادة تعيين كلمة المرور إلى ${email}`);
-    } catch (err) {
-        setAuthError(getFirebaseErrorMessage(err.code));
-    }
+    forgotPasswordMode = true;
+    await showOtpStep(email, null, "reset");
 });
 
 
@@ -2092,15 +2090,29 @@ document.getElementById("otpSubmitBtn")?.addEventListener("click", async () => {
     setAuthError("");
 
     try {
+        const purpose = forgotPasswordMode ? "reset" : "login";
         const resp = await fetch(`${API_BASE}/auth/verify-otp`, {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ email: pendingOtpEmail, otp: code }),
+            body: JSON.stringify({ email: pendingOtpEmail, otp: code, purpose }),
         });
         const data = await resp.json();
         if (!resp.ok) { setAuthError(data.error || "رمز غير صحيح."); return; }
 
-        // OTP verified — store Firebase user info and show success
+        if (forgotPasswordMode) {
+            // OTP verified for password reset — show new password form
+            document.getElementById("authOtpStep")?.classList.add("hidden");
+            document.getElementById("authResetStep")?.classList.remove("hidden");
+            authTitle.textContent = "كلمة مرور جديدة";
+            authDescription.textContent = "أدخل كلمة المرور الجديدة لحسابك";
+            document.getElementById("resetNewPassword").value = "";
+            document.getElementById("resetConfirmPassword").value = "";
+            document.getElementById("resetNewPassword").focus();
+            setAuthError("");
+            return;
+        }
+
+        // OTP verified for login — store Firebase user info and show success
         const fbUser = pendingOtpFirebaseUser || fbAuth.currentUser;
         if (fbUser) {
             const userDoc = await fbDb.collection("users").doc(fbUser.uid).get().catch(() => null);
@@ -2132,7 +2144,7 @@ document.getElementById("otpResendBtn")?.addEventListener("click", async () => {
         await fetch(`${API_BASE}/auth/send-otp`, {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ email: pendingOtpEmail }),
+            body: JSON.stringify({ email: pendingOtpEmail, purpose: forgotPasswordMode ? "reset" : "login" }),
         });
         setAuthError("");
         btn.textContent = "تم الإرسال ✓";
@@ -2143,6 +2155,50 @@ document.getElementById("otpResendBtn")?.addEventListener("click", async () => {
     } catch (_) {
         btn.textContent = "لم يصل الرمز؟ أعد الإرسال";
         btn.disabled = false;
+    }
+});
+
+document.getElementById("resetSubmitBtn")?.addEventListener("click", async () => {
+    const newPwd = document.getElementById("resetNewPassword").value;
+    const confPwd = document.getElementById("resetConfirmPassword").value;
+    setAuthError("");
+    if (newPwd.length < 6) { setAuthError("كلمة المرور يجب أن تكون 6 أحرف على الأقل."); return; }
+    if (newPwd !== confPwd) { setAuthError("كلمتا المرور غير متطابقتين."); return; }
+
+    const btn = document.getElementById("resetSubmitBtn");
+    btn.disabled = true;
+    btn.textContent = "جاري...";
+
+    try {
+        const resp = await fetch(`${API_BASE}/auth/reset-password`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ email: pendingOtpEmail, newPassword: newPwd }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) { setAuthError(data.error || "فشل تغيير كلمة المرور."); return; }
+
+        // Auto sign in with new password
+        const email = pendingOtpEmail;
+        hideOtpStep();
+        const cred = await fbAuth.signInWithEmailAndPassword(email, newPwd);
+        const fbUser = cred.user;
+        const userDoc = await fbDb.collection("users").doc(fbUser.uid).get().catch(() => null);
+        const ud = userDoc?.data() || {};
+        setStoredUser({
+            id: fbUser.uid,
+            email: fbUser.email,
+            name: ud.name || fbUser.displayName || fbUser.email?.split("@")[0] || "مستخدم",
+            phone: ud.phone || "",
+            avatar: ud.avatar || "",
+        });
+        showAuthSuccess();
+        updateAuthNav();
+    } catch (err) {
+        setAuthError(err.message || "حدث خطأ، حاول مرة أخرى.");
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "تغيير كلمة المرور";
     }
 });
 
