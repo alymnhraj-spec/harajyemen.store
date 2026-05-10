@@ -1919,7 +1919,7 @@ authForm?.addEventListener("submit", async (e) => {
         if (isRegister) {
             const name = nameInput.value.trim();
             const cred = await fbAuth.createUserWithEmailAndPassword(email, password);
-            // Save to Firestore (non-fatal if fails)
+            await cred.user.sendEmailVerification();
             fbDb.collection("users").doc(cred.user.uid).set({
                 name,
                 email,
@@ -1927,8 +1927,25 @@ authForm?.addEventListener("submit", async (e) => {
                 created_at: firebase.firestore.FieldValue.serverTimestamp(),
             }).catch(() => {});
             cred.user.updateProfile({ displayName: name }).catch(() => {});
+            await fbAuth.signOut();
+            setAuthError("");
+            authSubmitBtn.disabled = false;
+            authSubmitBtn.textContent = "إنشاء حساب";
+            authTitle.textContent = "تحقق من بريدك الإلكتروني";
+            authDescription.textContent = `تم إرسال رابط التحقق إلى ${email}. يرجى فتح بريدك والضغط على الرابط ثم تسجيل الدخول.`;
+            authForm?.classList.add("hidden");
+            loginTabBtn?.classList.add("hidden");
+            registerTabBtn?.classList.add("hidden");
+            return;
         } else {
-            await fbAuth.signInWithEmailAndPassword(email, password);
+            const cred = await fbAuth.signInWithEmailAndPassword(email, password);
+            if (!cred.user.emailVerified) {
+                await fbAuth.signOut();
+                setAuthError("يجب التحقق من بريدك الإلكتروني أولاً. تحقق من صندوق الوارد وافتح رابط التحقق.");
+                authSubmitBtn.disabled = false;
+                authSubmitBtn.textContent = "تسجيل الدخول";
+                return;
+            }
         }
         showAuthSuccess();
     } catch (err) {
