@@ -1,5 +1,5 @@
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const FROM_EMAIL = "حراج اليمن <noreply@harajyemen.store>";
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "حراج اليمن <onboarding@resend.dev>";
 
 async function sendOtpEmail(toEmail, otp) {
   if (!RESEND_API_KEY) throw new Error("RESEND_API_KEY not configured");
