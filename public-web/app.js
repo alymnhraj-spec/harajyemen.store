@@ -1593,7 +1593,7 @@ function renderListingPage(item) {
     const shareText = `${listingWithViews.title} - ${formatPrice(listingWithViews.price, listingWithViews.priceType, listingWithViews.currency)}`;
     listingPageBody.innerHTML = `
         <div class="listing-page-shell">
-        <div class="listing-page-grid" style="grid-template-columns: ${hasRealImages ? "1.05fr 1fr" : "1fr"};">
+        <div class="listing-page-grid${hasRealImages ? "" : " listing-page-grid--single"}">
             ${hasRealImages ? `
             <div class="listing-gallery">
                 <img src="${images[0]}" class="listing-main-image" data-lightbox-src="${images[0]}">

@@ -1152,6 +1152,16 @@ header {
   gap: 1.5rem;
 }
 
+.listing-page-grid--single {
+  grid-template-columns: 1fr;
+}
+
+.modal-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
 .listing-gallery {
   display: grid;
   gap: 0.8rem;
