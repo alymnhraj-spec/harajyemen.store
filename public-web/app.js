@@ -2244,6 +2244,14 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (listingId) {
         const listing = getListingById(listingId);
         if (listing) {
+            if (!getStoredUser()) {
+                history.replaceState(null, "", window.location.pathname);
+                loader.style.display = "none";
+                showListingsPage();
+                renderCurrentListings();
+                openAuthModal("login");
+                return;
+            }
             renderListingPage(listing);
             loader.style.display = "none";
             return;
