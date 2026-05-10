@@ -1991,15 +1991,19 @@ authForm?.addEventListener("submit", async (e) => {
             return;
         } else {
             const cred = await fbAuth.signInWithEmailAndPassword(email, password);
-            if (!getStoredUser()) {
-                setStoredUser({
-                    id: cred.user.uid,
-                    email: cred.user.email,
-                    name: cred.user.displayName || cred.user.email?.split("@")[0] || "مستخدم",
-                    phone: "",
-                    avatar: "",
-                });
+            if (!cred.user.emailVerified) {
+                await cred.user.sendEmailVerification().catch(() => {});
+                await fbAuth.signOut();
+                setAuthError(`يجب التحقق من بريدك الإلكتروني أولاً. تم إرسال رابط التحقق إلى ${email} — افتح بريدك واضغط على الرابط ثم سجّل الدخول.`);
+                return;
             }
+            setStoredUser({
+                id: cred.user.uid,
+                email: cred.user.email,
+                name: cred.user.displayName || cred.user.email?.split("@")[0] || "مستخدم",
+                phone: "",
+                avatar: "",
+            });
         }
         showAuthSuccess();
         updateAuthNav();
