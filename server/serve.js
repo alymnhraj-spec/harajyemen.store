@@ -123,7 +123,11 @@ function serveStaticFile(urlPath, res) {
   const ext = path.extname(filePath).toLowerCase();
   const contentType = MIME_TYPES[ext] || "application/octet-stream";
   const content = fs.readFileSync(filePath);
-  res.writeHead(200, { "content-type": contentType });
+  const isImmutable = [".woff", ".woff2", ".ttf", ".otf"].includes(ext);
+  const cacheControl = isImmutable
+    ? "public, max-age=31536000, immutable"
+    : "no-cache, must-revalidate";
+  res.writeHead(200, { "content-type": contentType, "cache-control": cacheControl });
   res.end(content);
 }
 
