@@ -1272,6 +1272,7 @@ async function publishPostDraft(draft) {
         price: draft.priceType === "free" || draft.priceType === "exchange" ? 0 : Number(draft.price) || 0,
         currency: draft.currency || "yer",
         price_type: draft.priceType,
+        priceType: draft.priceType,
         subcategory: draft.subcategory,
         governorate: draft.governorate,
         condition: draft.condition,
@@ -1288,7 +1289,7 @@ async function publishPostDraft(draft) {
 
     const sessionToken = getStoredUser()?.sessionToken;
     if (sessionToken) {
-        const resp = await fetch(`${API_BASE}/api/listings`, {
+        const resp = await fetch(`${API_BASE}/listings`, {
             method: "POST",
             headers: { "content-type": "application/json", "x-session-token": sessionToken },
             body: JSON.stringify(payload),
