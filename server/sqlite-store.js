@@ -408,7 +408,7 @@ function bootstrap(sessionToken) {
 }
 
 function getListings() {
-  const rows = db.prepare("SELECT * FROM listings WHERE status != 'deleted' ORDER BY created_at DESC LIMIT 200").all();
+  const rows = db.prepare("SELECT * FROM listings ORDER BY created_at DESC LIMIT 200").all();
   return rows.map(rowToListing);
 }
 
@@ -429,7 +429,7 @@ function addListing(sessionToken, payload) {
     images: Array.isArray(payload.images) ? payload.images : [],
     userId: currentUser.id,
     userName: currentUser.name,
-    userPhone: currentUser.phone,
+    userPhone: payload.user_phone || currentUser.phone || "",
     userAvatar: currentUser.avatar || "",
     createdAt: nowIso(),
     views: 0,

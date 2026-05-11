@@ -1308,7 +1308,12 @@ async function publishPostDraft(draft) {
         });
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({}));
-            setAgreementError(err.error || "فشل نشر الإعلان.");
+            if (resp.status === 401) {
+                clearStoredUser();
+                setAgreementError("انتهت جلستك. سجّل دخولك مجدداً ثم أعد النشر.");
+            } else {
+                setAgreementError(err.error || "فشل نشر الإعلان.");
+            }
             return;
         }
     } else {
