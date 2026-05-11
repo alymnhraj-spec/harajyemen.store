@@ -76,13 +76,13 @@ const SAMPLE_LISTINGS = [
 ];
 
 const db = new DatabaseSync(DB_PATH);
-try { db.exec(`ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''`); } catch {}
 db.exec(`
   PRAGMA journal_mode = WAL;
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     phone TEXT NOT NULL,
+    email TEXT DEFAULT '',
     avatar TEXT DEFAULT '',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
@@ -138,6 +138,7 @@ db.exec(`
     created_at TEXT NOT NULL
   );
 `);
+try { db.exec(`ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''`); } catch {}
 
 function nowIso() {
   return new Date().toISOString();
