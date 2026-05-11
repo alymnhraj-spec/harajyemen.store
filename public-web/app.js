@@ -483,6 +483,17 @@ async function refreshRemoteState() {
         remoteState.favorites = JSON.parse(localStorage.getItem(`haraj_favs_${user.id}`) || "[]");
     }
 
+    try {
+        const serverResp = await fetch(`${API_BASE}/listings`);
+        if (serverResp.ok) {
+            const serverData = await serverResp.json();
+            const serverListings = (serverData.listings || []).map(normalizeListing);
+            const firestoreIds = new Set(remoteState.listings.map(l => l.id));
+            const newOnes = serverListings.filter(l => !firestoreIds.has(l.id));
+            remoteState.listings = sortListingsByDate([...remoteState.listings, ...newOnes]);
+        }
+    } catch (_) {}
+
     remoteStateReady = true;
     return remoteState;
 }
@@ -2434,7 +2445,11 @@ confirmAgreementBtn.addEventListener("click", async () => {
         return;
     }
 
+    confirmAgreementBtn.disabled = true;
+    confirmAgreementBtn.textContent = "جاري النشر...";
     await publishPostDraft(pendingPostDraft);
+    confirmAgreementBtn.disabled = false;
+    confirmAgreementBtn.textContent = "موافقة ونشر الإعلان";
 });
 
 // Firebase auth state listener — runs on every login/logout

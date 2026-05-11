@@ -407,6 +407,11 @@ function bootstrap(sessionToken) {
   };
 }
 
+function getListings() {
+  const rows = db.prepare("SELECT * FROM listings WHERE status != 'deleted' ORDER BY created_at DESC LIMIT 200").all();
+  return rows.map(rowToListing);
+}
+
 function addListing(sessionToken, payload) {
   const currentUser = getSessionUser(sessionToken);
   if (!currentUser) return null;
@@ -578,6 +583,7 @@ module.exports = {
   signInWithEmail,
   signOut,
   updateUser,
+  getListings,
   addListing,
   deleteListing,
   incrementViews,

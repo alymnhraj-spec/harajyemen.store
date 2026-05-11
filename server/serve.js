@@ -20,6 +20,7 @@ const {
   signInWithEmail,
   signOut,
   updateUser,
+  getListings,
   addListing,
   deleteListing,
   incrementViews,
@@ -294,6 +295,11 @@ async function handleApi(req, res, url) {
     } catch (error) {
       sendJson(res, error.statusCode || 400, { error: error.message || "Update failed" });
     }
+    return true;
+  }
+
+  if (url.pathname === "/api/listings" && req.method === "GET") {
+    sendJson(res, 200, { listings: getListings() });
     return true;
   }
 
