@@ -1317,7 +1317,12 @@ async function publishPostDraft(draft) {
             return;
         }
     } else {
-        await fbDb.collection("posts").add(payload);
+        try {
+            await fbDb.collection("posts").add(payload);
+        } catch (err) {
+            setAgreementError("لا يمكن النشر. حاول تسجيل الخروج وإعادة الدخول.");
+            return;
+        }
     }
     await refreshRemoteState().catch(() => {});
 
@@ -2145,21 +2150,36 @@ document.getElementById("otpSubmitBtn")?.addEventListener("click", async () => {
             return;
         }
 
-        // OTP verified for login — store Firebase user info and show success
-        const fbUser = pendingOtpFirebaseUser || fbAuth.currentUser;
-        if (fbUser) {
-            const userDoc = await fbDb.collection("users").doc(fbUser.uid).get().catch(() => null);
-            const ud = userDoc?.data() || {};
-            setStoredUser({
-                id: fbUser.uid,
-                email: fbUser.email,
-                name: ud.name || fbUser.displayName || fbUser.email?.split("@")[0] || "مستخدم",
-                phone: ud.phone || "",
-                avatar: ud.avatar || "",
-            });
+        // OTP verified for login — prefer server session token
+        if (data.sessionToken && data.user) {
+            setStoredUser({ ...data.user, sessionToken: data.sessionToken });
+        } else {
+            // New user: auto-register with server using Firebase display name
+            const fbUser = pendingOtpFirebaseUser || fbAuth.currentUser;
+            const name = fbUser?.displayName || pendingOtpEmail.split("@")[0] || "مستخدم";
+            try {
+                const regResp = await fetch(`${API_BASE}/auth/signin-email`, {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ email: pendingOtpEmail, name }),
+                });
+                if (regResp.ok) {
+                    const regData = await regResp.json();
+                    if (regData.sessionToken) {
+                        setStoredUser({ ...(regData.user || {}), sessionToken: regData.sessionToken });
+                    }
+                }
+            } catch (_) {}
+            // Fallback to Firebase-only if server failed
+            if (!getStoredUser()) {
+                const fbUser2 = pendingOtpFirebaseUser || fbAuth.currentUser;
+                if (fbUser2) {
+                    setStoredUser({ id: fbUser2.uid, email: fbUser2.email, name: fbUser2.displayName || pendingOtpEmail.split("@")[0] || "مستخدم", phone: "", avatar: "" });
+                }
+            }
         }
         hideOtpStep();
-        showAuthSuccess();
+        closeAuth();
         updateAuthNav();
     } catch (_) {
         setAuthError("حدث خطأ، حاول مرة أخرى.");
@@ -2460,7 +2480,12 @@ confirmAgreementBtn.addEventListener("click", async () => {
 
     confirmAgreementBtn.disabled = true;
     confirmAgreementBtn.textContent = "جاري النشر...";
-    await publishPostDraft(pendingPostDraft);
+    try {
+        await publishPostDraft(pendingPostDraft);
+    } catch (err) {
+        console.error("publishPostDraft error:", err);
+        setAgreementError("حدث خطأ أثناء النشر. حاول مجدداً.");
+    }
     confirmAgreementBtn.disabled = false;
     confirmAgreementBtn.textContent = "موافقة ونشر الإعلان";
 });
