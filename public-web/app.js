@@ -198,6 +198,7 @@ const postCategory = document.getElementById("postCategory");
 const postSubcategory = document.getElementById("postSubcategory");
 const postPriceType = document.getElementById("postPriceType");
 const postCondition = document.getElementById("postCondition");
+const postPhone = document.getElementById("postPhone");
 const postDescription = document.getElementById("postDescription");
 const postImage = document.getElementById("postImage");
 const postImagePreview = document.getElementById("postImagePreview");
@@ -1276,7 +1277,7 @@ async function publishPostDraft(draft) {
         condition: draft.condition,
         user_id: draft.user.id,
         user_name: draft.user.name,
-        user_phone: draft.user.phone || "",
+        user_phone: draft.phone || draft.user.phone || "",
         user_avatar: draft.user.avatar || "",
         category: draft.category,
         description: draft.description,
@@ -2375,11 +2376,17 @@ postForm.addEventListener("submit", (e) => {
     const priceType = postPriceType.value.trim();
     const condition = postCondition.value.trim();
     const description = postDescription.value.trim();
+    const phone = postPhone.value.replace(/\D/g, "").slice(0, 15);
     const images = postImageDataUrls.length ? postImageDataUrls : [];
     const blockedTerm = getBlockedAdTerm(`${title} ${description} ${category} ${subcategory}`);
 
     if (!title || !governorate || !category || !description) {
         setPostError("يرجى تعبئة جميع الحقول الأساسية واختيار المحافظة قبل نشر الإعلان.");
+        return;
+    }
+
+    if (!phone || phone.length < 7) {
+        setPostError("يرجى إدخال رقم الجوال.");
         return;
     }
 
@@ -2403,6 +2410,7 @@ postForm.addEventListener("submit", (e) => {
         priceType,
         condition,
         description,
+        phone,
         images,
     });
 });
