@@ -804,9 +804,17 @@ function syncSubcategoryOptions() {
 
 function deleteStoredPostById(postId) {
     remoteState.listings = remoteState.listings.filter((l) => String(l.id) !== String(postId));
-    fbDb.collection("posts").doc(String(postId)).delete()
-        .then(() => refreshRemoteState().then(() => renderCurrentListings()).catch(() => {}))
-        .catch(() => {});
+    const sessionToken = getStoredUser()?.sessionToken;
+    if (sessionToken) {
+        fetch(`${API_BASE}/listings/${encodeURIComponent(postId)}`, {
+            method: "DELETE",
+            headers: { "x-session-token": sessionToken },
+        }).then(() => refreshRemoteState().then(() => renderCurrentListings()).catch(() => {})).catch(() => {});
+    } else {
+        fbDb.collection("posts").doc(String(postId)).delete()
+            .then(() => refreshRemoteState().then(() => renderCurrentListings()).catch(() => {}))
+            .catch(() => {});
+    }
 }
 
 function mapLegacyCategory(value) {
