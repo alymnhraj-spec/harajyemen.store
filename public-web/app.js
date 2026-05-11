@@ -1281,14 +1281,15 @@ async function publishPostDraft(draft) {
 
     const sessionToken = getStoredUser()?.sessionToken;
     if (sessionToken) {
+        const { created_at: _omit, ...serverPayload } = payload;
         const resp = await fetch(`${API_BASE}/listings`, {
             method: "POST",
             headers: { "content-type": "application/json", "x-session-token": sessionToken },
-            body: JSON.stringify(payload),
+            body: JSON.stringify(serverPayload),
         });
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({}));
-            setPostError(err.error || "فشل نشر الإعلان.");
+            setAgreementError(err.error || "فشل نشر الإعلان.");
             return;
         }
     } else {
