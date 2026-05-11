@@ -1286,7 +1286,21 @@ async function publishPostDraft(draft) {
         created_at: firebase.firestore.FieldValue.serverTimestamp(),
     };
 
-    await fbDb.collection("posts").add(payload);
+    const sessionToken = getStoredUser()?.sessionToken;
+    if (sessionToken) {
+        const resp = await fetch(`${API_BASE}/api/listings`, {
+            method: "POST",
+            headers: { "content-type": "application/json", "x-session-token": sessionToken },
+            body: JSON.stringify(payload),
+        });
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            setPostError(err.error || "فشل نشر الإعلان.");
+            return;
+        }
+    } else {
+        await fbDb.collection("posts").add(payload);
+    }
     await refreshRemoteState().catch(() => {});
 
     postForm.reset();
