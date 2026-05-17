@@ -1305,11 +1305,22 @@ async function publishPostDraft(draft) {
         const fbToken = await fbAuth.currentUser?.getIdToken().catch(() => null);
         if (fbToken) publishHeaders["x-firebase-token"] = fbToken;
     } catch (_) {}
-    const resp = await fetch(`${API_BASE}/listings`, {
-        method: "POST",
-        headers: publishHeaders,
-        body: JSON.stringify(serverPayload),
-    });
+    const abortCtrl = new AbortController();
+    const abortTimer = setTimeout(() => abortCtrl.abort(), 20000);
+    let resp;
+    try {
+        resp = await fetch(`${API_BASE}/listings`, {
+            method: "POST",
+            headers: publishHeaders,
+            body: JSON.stringify(serverPayload),
+            signal: abortCtrl.signal,
+        });
+    } catch (fetchErr) {
+        clearTimeout(abortTimer);
+        setAgreementError("تعذّر الاتصال بالسيرفر. تحقق من الاتصال وحاول مجدداً.");
+        return;
+    }
+    clearTimeout(abortTimer);
     if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
         if (resp.status === 401) {
