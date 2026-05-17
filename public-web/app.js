@@ -1266,12 +1266,17 @@ async function publishPostDraft(draft) {
     const imageUrls = [];
     for (const dataUrl of draft.images) {
         if (dataUrl && dataUrl.startsWith("data:")) {
-            try {
-                const ref = fbStorage.ref(`posts/${Date.now()}_${Math.random().toString(36).slice(2)}`);
-                await ref.putString(dataUrl, "data_url");
-                const url = await ref.getDownloadURL();
-                imageUrls.push(url);
-            } catch { /* skip failed uploads */ }
+            const url = await Promise.race([
+                (async () => {
+                    try {
+                        const ref = fbStorage.ref(`posts/${Date.now()}_${Math.random().toString(36).slice(2)}`);
+                        await ref.putString(dataUrl, "data_url");
+                        return await ref.getDownloadURL();
+                    } catch { return null; }
+                })(),
+                new Promise((resolve) => setTimeout(() => resolve(null), 8000)),
+            ]);
+            if (url) imageUrls.push(url);
         } else if (dataUrl) {
             imageUrls.push(dataUrl);
         }
@@ -1302,7 +1307,10 @@ async function publishPostDraft(draft) {
     const publishHeaders = { "content-type": "application/json" };
     if (sessionToken) publishHeaders["x-session-token"] = sessionToken;
     try {
-        const fbToken = await fbAuth.currentUser?.getIdToken().catch(() => null);
+        const fbToken = await Promise.race([
+            fbAuth.currentUser?.getIdToken().catch(() => null) ?? Promise.resolve(null),
+            new Promise((resolve) => setTimeout(() => resolve(null), 5000)),
+        ]);
         if (fbToken) publishHeaders["x-firebase-token"] = fbToken;
     } catch (_) {}
     const abortCtrl = new AbortController();
