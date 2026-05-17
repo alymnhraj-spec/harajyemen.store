@@ -12,6 +12,11 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
+
+const DB_DIR = path.dirname(path.resolve(process.env.DB_PATH || path.join(__dirname, "db.sqlite")));
+const IMAGE_DIR = path.join(DB_DIR, "images");
+fs.mkdirSync(IMAGE_DIR, { recursive: true });
 const {
   bootstrap,
   findUserByPhone,
@@ -321,6 +326,29 @@ async function handleApi(req, res, url) {
 
   if (url.pathname === "/api/listings" && req.method === "GET") {
     sendJson(res, 200, { listings: getListings() });
+    return true;
+  }
+
+  if (url.pathname === "/api/images" && req.method === "POST") {
+    const body = await readJsonBody(req);
+    const raw = String(body.data || "");
+    const base64 = raw.replace(/^data:image\/\w+;base64,/, "");
+    if (!base64) { sendJson(res, 400, { error: "No image data" }); return true; }
+    const filename = `${Date.now()}_${crypto.randomBytes(4).toString("hex")}.jpg`;
+    fs.writeFileSync(path.join(IMAGE_DIR, filename), Buffer.from(base64, "base64"));
+    const proto = req.headers["x-forwarded-proto"] || "https";
+    const host = req.headers["x-forwarded-host"] || req.headers["host"];
+    sendJson(res, 200, { url: `${proto}://${host}/api/images/${filename}` });
+    return true;
+  }
+
+  if (url.pathname.startsWith("/api/images/") && req.method === "GET") {
+    const filename = path.basename(url.pathname);
+    const imagePath = path.join(IMAGE_DIR, filename);
+    if (!fs.existsSync(imagePath)) { res.writeHead(404); res.end("Not Found"); return true; }
+    const content = fs.readFileSync(imagePath);
+    res.writeHead(200, { "content-type": "image/jpeg", "cache-control": "public, max-age=31536000, immutable" });
+    res.end(content);
     return true;
   }
 

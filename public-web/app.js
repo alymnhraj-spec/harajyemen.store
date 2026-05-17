@@ -1262,21 +1262,52 @@ function closeAgreementModalHandler() {
     setBodyScrollLocked(true);
 }
 
+function resizeImageForUpload(dataUrl, maxPx = 1024, quality = 0.75) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+            const w = Math.round(img.width * scale);
+            const h = Math.round(img.height * scale);
+            const canvas = document.createElement("canvas");
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) { resolve(dataUrl); return; }
+            ctx.drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL("image/jpeg", quality));
+        };
+        img.onerror = () => resolve(dataUrl);
+        img.src = dataUrl;
+    });
+}
+
+async function uploadImageToServer(dataUrl) {
+    try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 20000);
+        const resp = await fetch(`${API_BASE}/images`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ data: dataUrl }),
+            signal: ctrl.signal,
+        });
+        clearTimeout(timer);
+        if (!resp.ok) return null;
+        const { url } = await resp.json();
+        return url || null;
+    } catch {
+        return null;
+    }
+}
+
 async function publishPostDraft(draft) {
     const imageUrls = [];
     for (const dataUrl of draft.images) {
         if (dataUrl && dataUrl.startsWith("data:")) {
-            const url = await Promise.race([
-                (async () => {
-                    try {
-                        const ref = fbStorage.ref(`posts/${Date.now()}_${Math.random().toString(36).slice(2)}`);
-                        await ref.putString(dataUrl, "data_url");
-                        return await ref.getDownloadURL();
-                    } catch { return null; }
-                })(),
-                new Promise((resolve) => setTimeout(() => resolve(null), 8000)),
-            ]);
-            if (url) imageUrls.push(url);
+            const resized = await resizeImageForUpload(dataUrl);
+            const uploaded = await uploadImageToServer(resized || dataUrl);
+            if (uploaded) imageUrls.push(uploaded);
         } else if (dataUrl) {
             imageUrls.push(dataUrl);
         }
