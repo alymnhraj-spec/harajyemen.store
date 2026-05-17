@@ -2526,12 +2526,22 @@ confirmAgreementBtn.addEventListener("click", async () => {
 
     confirmAgreementBtn.disabled = true;
     confirmAgreementBtn.textContent = "جاري النشر...";
+    let done = false;
+    const safetyTimer = setTimeout(() => {
+        if (!done) {
+            confirmAgreementBtn.disabled = false;
+            confirmAgreementBtn.textContent = "موافقة ونشر الإعلان";
+            setAgreementError("انتهى الوقت. تحقق من الاتصال وحاول مجدداً.");
+        }
+    }, 35000);
     try {
         await publishPostDraft(pendingPostDraft);
     } catch (err) {
         console.error("publishPostDraft error:", err);
         setAgreementError("حدث خطأ أثناء النشر. حاول مجدداً.");
     }
+    done = true;
+    clearTimeout(safetyTimer);
     confirmAgreementBtn.disabled = false;
     confirmAgreementBtn.textContent = "موافقة ونشر الإعلان";
 });
@@ -2539,14 +2549,19 @@ confirmAgreementBtn.addEventListener("click", async () => {
 // Firebase auth state listener — runs on every login/logout
 fbAuth.onAuthStateChanged(async (firebaseUser) => {
     if (firebaseUser) {
+        const existing = getStoredUser();
+        // Preserve server session token and server-assigned ID
+        const sessionToken = existing?.sessionToken;
+        const serverId = existing?.id;
         const userDoc = await fbDb.collection("users").doc(firebaseUser.uid).get().catch(() => null);
         const userData = userDoc?.data() || {};
         setStoredUser({
-            id: firebaseUser.uid,
+            id: serverId || firebaseUser.uid,
             email: firebaseUser.email,
-            name: userData.name || firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
-            phone: userData.phone || "",
-            avatar: userData.avatar || "",
+            name: existing?.name || userData.name || firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "مستخدم",
+            phone: existing?.phone || userData.phone || "",
+            avatar: existing?.avatar || userData.avatar || "",
+            sessionToken,
         });
     } else {
         clearStoredUser();
