@@ -805,16 +805,15 @@ function syncSubcategoryOptions() {
 function deleteStoredPostById(postId) {
     remoteState.listings = remoteState.listings.filter((l) => String(l.id) !== String(postId));
     const sessionToken = getStoredUser()?.sessionToken;
-    if (sessionToken) {
-        fetch(`${API_BASE}/listings/${encodeURIComponent(postId)}`, {
+    const deleteHeaders = {};
+    if (sessionToken) deleteHeaders["x-session-token"] = sessionToken;
+    Promise.resolve(fbAuth.currentUser?.getIdToken().catch(() => null)).then((fbToken) => {
+        if (fbToken) deleteHeaders["x-firebase-token"] = fbToken;
+        return fetch(`${API_BASE}/listings/${encodeURIComponent(postId)}`, {
             method: "DELETE",
-            headers: { "x-session-token": sessionToken },
-        }).then(() => refreshRemoteState().then(() => renderCurrentListings()).catch(() => {})).catch(() => {});
-    } else {
-        fbDb.collection("posts").doc(String(postId)).delete()
-            .then(() => refreshRemoteState().then(() => renderCurrentListings()).catch(() => {}))
-            .catch(() => {});
-    }
+            headers: deleteHeaders,
+        });
+    }).then(() => refreshRemoteState().then(() => renderCurrentListings()).catch(() => {})).catch(() => {});
 }
 
 function mapLegacyCategory(value) {
@@ -1299,30 +1298,27 @@ async function publishPostDraft(draft) {
     };
 
     const sessionToken = getStoredUser()?.sessionToken;
-    if (sessionToken) {
-        const { created_at: _omit, ...serverPayload } = payload;
-        const resp = await fetch(`${API_BASE}/listings`, {
-            method: "POST",
-            headers: { "content-type": "application/json", "x-session-token": sessionToken },
-            body: JSON.stringify(serverPayload),
-        });
-        if (!resp.ok) {
-            const err = await resp.json().catch(() => ({}));
-            if (resp.status === 401) {
-                clearStoredUser();
-                setAgreementError("انتهت جلستك. سجّل دخولك مجدداً ثم أعد النشر.");
-            } else {
-                setAgreementError(err.error || "فشل نشر الإعلان.");
-            }
-            return;
+    const { created_at: _omit, ...serverPayload } = payload;
+    const publishHeaders = { "content-type": "application/json" };
+    if (sessionToken) publishHeaders["x-session-token"] = sessionToken;
+    try {
+        const fbToken = await fbAuth.currentUser?.getIdToken().catch(() => null);
+        if (fbToken) publishHeaders["x-firebase-token"] = fbToken;
+    } catch (_) {}
+    const resp = await fetch(`${API_BASE}/listings`, {
+        method: "POST",
+        headers: publishHeaders,
+        body: JSON.stringify(serverPayload),
+    });
+    if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        if (resp.status === 401) {
+            clearStoredUser();
+            setAgreementError("انتهت جلستك. سجّل دخولك مجدداً ثم أعد النشر.");
+        } else {
+            setAgreementError(err.error || "فشل نشر الإعلان.");
         }
-    } else {
-        try {
-            await fbDb.collection("posts").add(payload);
-        } catch (err) {
-            setAgreementError("لا يمكن النشر. حاول تسجيل الخروج وإعادة الدخول.");
-            return;
-        }
+        return;
     }
     await refreshRemoteState().catch(() => {});
 

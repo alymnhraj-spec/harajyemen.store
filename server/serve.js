@@ -27,6 +27,7 @@ const {
   toggleFavorite,
   sendMessage,
   seedConversationOnce,
+  getSessionUser,
 } = require("./sqlite-store");
 const { sendOtpEmail } = require("./mailer");
 const { saveOtp, verifyOtp, consumeVerified, consumeResetVerified } = require("./otp-store");
@@ -167,6 +168,26 @@ function readJsonBody(req) {
   });
 }
 
+async function resolveSessionToken(req) {
+  const token = req.headers["x-session-token"] || "";
+  if (token && getSessionUser(token)) return token;
+
+  const firebaseToken = req.headers["x-firebase-token"] || "";
+  if (!firebaseToken) return token;
+  const admin = getAdmin();
+  if (!admin) return token;
+  try {
+    const decoded = await admin.auth().verifyIdToken(firebaseToken);
+    const email = decoded.email;
+    if (!email) return token;
+    const name = decoded.name || email.split("@")[0] || "مستخدم";
+    const { sessionToken } = signInWithEmail(email, name);
+    return sessionToken;
+  } catch {
+    return token;
+  }
+}
+
 async function handleApi(req, res, url) {
   if (req.method === "OPTIONS") {
     sendJson(res, 204, {});
@@ -305,7 +326,8 @@ async function handleApi(req, res, url) {
 
   if (url.pathname === "/api/listings" && req.method === "POST") {
     const body = await readJsonBody(req);
-    const listing = addListing(req.headers["x-session-token"] || "", body);
+    const token = await resolveSessionToken(req);
+    const listing = addListing(token, body);
     if (!listing) {
       sendJson(res, 401, { error: "Unauthorized" });
       return true;
@@ -316,7 +338,8 @@ async function handleApi(req, res, url) {
 
   if (url.pathname.startsWith("/api/listings/") && req.method === "DELETE") {
     const listingId = decodeURIComponent(url.pathname.split("/").pop());
-    const success = deleteListing(req.headers["x-session-token"] || "", listingId);
+    const token = await resolveSessionToken(req);
+    const success = deleteListing(token, listingId);
     sendJson(res, success ? 200 : 403, { success });
     return true;
   }
