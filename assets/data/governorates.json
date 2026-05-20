@@ -1,0 +1,23 @@
+[
+  {"id": "sanaa", "name": "صنعاء"},
+  {"id": "aden", "name": "عدن"},
+  {"id": "taiz", "name": "تعز"},
+  {"id": "hudaydah", "name": "الحديدة"},
+  {"id": "ibb", "name": "إب"},
+  {"id": "dhamar", "name": "ذمار"},
+  {"id": "hadramawt", "name": "حضرموت"},
+  {"id": "marib", "name": "مأرب"},
+  {"id": "lahj", "name": "لحج"},
+  {"id": "abyan", "name": "أبين"},
+  {"id": "shebwa", "name": "شبوة"},
+  {"id": "amran", "name": "عمران"},
+  {"id": "hajja", "name": "حجة"},
+  {"id": "saada", "name": "صعدة"},
+  {"id": "almahra", "name": "المهرة"},
+  {"id": "albayda", "name": "البيضاء"},
+  {"id": "aljawf", "name": "الجوف"},
+  {"id": "alkhodaydah", "name": "المحويت"},
+  {"id": "raimah", "name": "ريمة"},
+  {"id": "aldhalea", "name": "الضالع"},
+  {"id": "socotra", "name": "سقطرى"}
+]
