@@ -1,0 +1,13 @@
+.git
+.expo
+.replit-artifact
+node_modules
+android
+dist
+logs
+server/db.sqlite
+server/db.json
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*

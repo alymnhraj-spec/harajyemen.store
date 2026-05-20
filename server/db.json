@@ -1,0 +1,246 @@
+{
+  "users": [
+    {
+      "id": "user_777123123",
+      "name": "???? ????",
+      "phone": "777123123",
+      "avatar": ""
+    },
+    {
+      "id": "user_714211224",
+      "name": "أحمد محمد",
+      "phone": "714211224",
+      "avatar": ""
+    },
+    {
+      "id": "user_771074445",
+      "name": "محمد أحمد",
+      "phone": "771074445",
+      "avatar": ""
+    }
+  ],
+  "listings": [
+    {
+      "title": "سيارة محمد",
+      "description": "هيونداي اكسنت 2024\nقير اوتماتيك\nبنزين\nالممشى: 118 ألف كيلو\n\nالسلام عليكم ورحمة الله وبركاته\nاكسنت موديل 2024 العداد 118 الف\n- المكينه - القير - الارباقات - الشواصي - وكاله شرط\n-البدي وكاله كامل شرط -ماعدا اجزاء صغيره رفرفين رش خارجي\n- جميع الزجاج زجاج الوكاله شرط\nالسياره قمة بالنظافة جداً ومنو المستخدم ولا فيه اي ملاحظه\nاذا تبين خلاف المذكور اتحمل قيمة الفحص\nالموقع حائل للتواصل 0553884389\nالسوم واصل 42",
+      "price": 10000,
+      "priceType": "fixed",
+      "category": "cars",
+      "subcategory": "سيارات جديدة",
+      "governorate": "sanaa",
+      "condition": "good",
+      "images": [
+        {
+          "uri": "blob:http://localhost:19006/37209fc9-828a-4d58-92a7-69bcef7b382d"
+        },
+        {
+          "uri": "blob:http://localhost:19006/f2cc0bf4-cf7c-4364-99d2-b41bf4f269d7"
+        },
+        {
+          "uri": "blob:http://localhost:19006/03a19c9d-97a0-46c6-b9f9-e45c40fe6f2a"
+        }
+      ],
+      "userId": "user_771074445",
+      "userName": "محمد أحمد",
+      "userPhone": "771074445",
+      "id": "1775539627238_zcz36c",
+      "createdAt": "2026-04-07T05:27:07.238Z",
+      "views": 5,
+      "favorites": 0,
+      "userAvatar": ""
+    },
+    {
+      "title": "سيارة",
+      "description": "هيونداي اكسنت 2024\nقير اوتماتيك\nبنزين\nالممشى: 118 ألف كيلو\n\nالسلام عليكم ورحمة الله وبركاته\nاكسنت موديل 2024 العداد 118 الف\n- المكينه - القير - الارباقات - الشواصي - وكاله شرط\n-البدي وكاله كامل شرط -ماعدا اجزاء صغيره رفرفين رش خارجي\n- جميع الزجاج زجاج الوكاله شرط\nالسياره قمة بالنظافة جداً ومنو المستخدم ولا فيه اي ملاحظه\nاذا تبين خلاف المذكور اتحمل قيمة الفحص\nالموقع حائل للتواصل 0553884389\nالسوم واصل 42",
+      "price": 10000,
+      "priceType": "fixed",
+      "category": "cars",
+      "subcategory": "سيارات مستعملة",
+      "governorate": "sanaa",
+      "condition": "good",
+      "images": [
+        {
+          "uri": "blob:http://127.0.0.1:19006/57436d88-9d17-4a60-8e0f-b8362ee1859b"
+        }
+      ],
+      "userId": "user_771074445",
+      "userName": "محمد أحمد",
+      "userPhone": "771074445",
+      "id": "1775538334136_eoahp4",
+      "createdAt": "2026-04-07T05:05:34.136Z",
+      "views": 11,
+      "favorites": 0,
+      "userAvatar": ""
+    },
+    {
+      "id": "1",
+      "title": "تويوتا لاندكروزر 2020",
+      "description": "سيارة بحالة ممتازة، مسير قليل، لون أبيض، جميع الكماليات",
+      "price": 45000000,
+      "currency": "yer",
+      "priceType": "negotiable",
+      "category": "cars",
+      "subcategory": "سيارات مستعملة",
+      "governorate": "sanaa",
+      "condition": "like_new",
+      "images": [],
+      "userId": "user1",
+      "userName": "أحمد محمد",
+      "userPhone": "777123456",
+      "createdAt": "2026-04-06T03:56:04.086Z",
+      "views": 235,
+      "favorites": 45,
+      "isFeatured": true
+    },
+    {
+      "id": "2",
+      "title": "شقة للإيجار في حدة - صنعاء",
+      "description": "شقة 3 غرف وصالة، الطابق الثالث، موقع مميز في حي حدة",
+      "price": 400000,
+      "currency": "yer",
+      "priceType": "fixed",
+      "category": "real_estate",
+      "subcategory": "شقق للإيجار",
+      "governorate": "sanaa",
+      "condition": "good",
+      "images": [],
+      "userId": "user2",
+      "userName": "محمد علي",
+      "userPhone": "712456789",
+      "createdAt": "2026-04-05T03:56:04.087Z",
+      "views": 189,
+      "favorites": 23
+    },
+    {
+      "id": "3",
+      "title": "آيفون 15 برو ماكس",
+      "description": "آيفون 15 برو ماكس 256 جيجا، شريط طبيعي، ضمان عام",
+      "price": 1800000,
+      "currency": "yer",
+      "priceType": "negotiable",
+      "category": "electronics",
+      "subcategory": "هواتف",
+      "governorate": "aden",
+      "condition": "new",
+      "images": [],
+      "userId": "user3",
+      "userName": "سالم أحمد",
+      "userPhone": "733789012",
+      "createdAt": "2026-04-07T02:56:04.087Z",
+      "views": 459,
+      "favorites": 67,
+      "isFeatured": true
+    },
+    {
+      "id": "4",
+      "title": "أرض سكنية في تعز",
+      "description": "أرض سكنية 500 متر مربع، موقع مميز، جاهزة للبناء",
+      "price": 25000000,
+      "currency": "yer",
+      "priceType": "fixed",
+      "category": "real_estate",
+      "subcategory": "أراضي",
+      "governorate": "taiz",
+      "condition": "new",
+      "images": [],
+      "userId": "user4",
+      "userName": "عبدالله حسن",
+      "userPhone": "771345678",
+      "createdAt": "2026-04-04T03:56:04.087Z",
+      "views": 124,
+      "favorites": 18
+    },
+    {
+      "id": "5",
+      "title": "بقر هولشتاين للبيع",
+      "description": "3 رؤوس بقر هولشتاين عالية الإنتاج، مناسب للمزارع",
+      "price": 2000000,
+      "currency": "yer",
+      "priceType": "negotiable",
+      "category": "animals",
+      "subcategory": "مواشي",
+      "governorate": "dhamar",
+      "condition": "new",
+      "images": [],
+      "userId": "user7",
+      "userName": "حسن علي",
+      "userPhone": "777567890",
+      "createdAt": "2026-04-01T03:56:04.087Z",
+      "views": 43,
+      "favorites": 7
+    },
+    {
+      "id": "6",
+      "title": "خدمة صيانة مكيفات للمنازل والمكاتب",
+      "description": "خدمة صيانة وتنظيف مكيفات مع زيارة منزلية سريعة داخل أمانة العاصمة.",
+      "price": 30000,
+      "currency": "yer",
+      "priceType": "fixed",
+      "category": "services",
+      "subcategory": "صيانة",
+      "governorate": "sanaa",
+      "condition": "good",
+      "images": [],
+      "userId": "user9",
+      "userName": "خالد أحمد",
+      "userPhone": "770100606",
+      "createdAt": "2026-04-06T19:56:04.087Z",
+      "views": 39,
+      "favorites": 5
+    }
+  ],
+  "favoritesByUser": {},
+  "messages": [
+    {
+      "id": "1775534923280_ymrinp",
+      "timestamp": "2026-04-07T04:08:43.280Z",
+      "isRead": false,
+      "mediaType": "text",
+      "listingId": "1775534841254_jusce4",
+      "listingTitle": "سيارة",
+      "senderId": "user_771074445",
+      "receiverId": "user_714211224",
+      "senderName": "محمد أحمد",
+      "content": "مرحبًا، هذا الإعلان \"سيارة\" ما زال متاحًا. كيف أستطيع مساعدتك؟"
+    },
+    {
+      "id": "1775534928258_3k823s",
+      "timestamp": "2026-04-07T04:08:48.258Z",
+      "isRead": false,
+      "mediaType": "text",
+      "listingId": "1775534841254_jusce4",
+      "listingTitle": "سيارة",
+      "senderId": "user_714211224",
+      "receiverId": "user_771074445",
+      "senderName": "أحمد محمد",
+      "content": "هلا"
+    },
+    {
+      "id": "1775537412788_2y6isz",
+      "timestamp": "2026-04-07T04:50:12.788Z",
+      "isRead": false,
+      "mediaType": "text",
+      "listingId": "3",
+      "listingTitle": "آيفون 15 برو ماكس",
+      "senderId": "me",
+      "receiverId": "user3",
+      "senderName": "المستخدم",
+      "content": "هلا"
+    },
+    {
+      "id": "1775538778004_q30yct",
+      "timestamp": "2026-04-07T05:12:58.004Z",
+      "isRead": false,
+      "mediaType": "text",
+      "listingId": "1775538334136_eoahp4",
+      "listingTitle": "سيارة",
+      "senderId": "user_771074445",
+      "receiverId": "user_771074445",
+      "senderName": "محمد أحمد",
+      "content": "سلام"
+    }
+  ],
+  "seededConversations": {
+    "1775534841254_jusce4__user_714211224__user_771074445": true
+  }
+}

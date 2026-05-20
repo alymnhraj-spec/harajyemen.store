@@ -48,3 +48,10 @@ app.*.map.json
 lib/services/notification_secrets.dart
 google-services.json
 GoogleService-Info.plist
+.env
+.env*.local
+*.key
+*.p12
+*.p8
+*.jks
+*.mobileprovision

@@ -1,0 +1,4 @@
+  --non-interactive is not supported, use $CI=1 instead
+The following packages should be updated for best compatibility with the installed expo version:
+  react-native-keyboard-controller@1.21.4 - expected version: 1.18.5
+Your project may not work correctly until you install the expected versions of the packages.

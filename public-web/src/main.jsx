@@ -1,0 +1,3 @@
+﻿// Placeholder entry for static web deployment.
+export {};
+
