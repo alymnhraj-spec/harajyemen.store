@@ -41,29 +41,11 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isSearching = false;
   List<PostModel> _searchResults = [];
 
-  final _scrollController = ScrollController();
-  bool _isLoadingMore = false;
-
   @override
   void initState() {
     super.initState();
     _loadGovernorates();
     timeago.setLocaleMessages('ar', timeago.ArMessages());
-    _scrollController.addListener(_onScroll);
-  }
-
-  void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 300) {
-      _loadMorePosts();
-    }
-  }
-
-  void _loadMorePosts() {
-    if (_isLoadingMore) return;
-    setState(() => _isLoadingMore = true);
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) setState(() => _isLoadingMore = false);
-    });
   }
 
   Future<void> _loadGovernorates() async {
@@ -87,7 +69,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _searchController.dispose();
-    _scrollController.dispose();
     super.dispose();
   }
 
@@ -302,7 +283,7 @@ class _HomeScreenState extends State<HomeScreen> {
             }
           },
           itemBuilder: (_) => [
-            const PopupMenuItem(value: 'my_ads', child: Row(children: [Icon(Icons.list_alt_outlined, size: 18), SizedBox(width: 8), Text('إعلاناتي')])),
+            const PopupMenuItem(value: 'my_ads', child: Row(children: [Icon(Icons.list_alt_outlined, size: 18), SizedBox(width: 8), Text('حسابي')])),
             if (isAdmin)
               const PopupMenuItem(value: 'admin', child: Row(children: [Icon(Icons.admin_panel_settings_outlined, size: 18), SizedBox(width: 8), Text('لوحة الإدارة')])),
             if (hasPasswordProvider)
@@ -1075,18 +1056,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildPlainGrid(List<PostModel> posts) {
     return GridView.builder(
-      controller: _scrollController,
       padding: const EdgeInsets.all(12),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 0.68,
       ),
-      itemCount: posts.length + (_isLoadingMore ? 2 : 0),
-      itemBuilder: (_, i) {
-        if (i >= posts.length) {
-          return const Card(child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
-        }
-        return PostCard(post: posts[i], onTap: () => _openPost(posts[i]));
-      },
+      itemCount: posts.length,
+      itemBuilder: (_, i) => PostCard(post: posts[i], onTap: () => _openPost(posts[i])),
     );
   }
 

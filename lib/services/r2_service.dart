@@ -4,14 +4,15 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
+import 'notification_secrets.dart';
 
 class R2Service {
   static final R2Service _instance = R2Service._internal();
   factory R2Service() => _instance;
   R2Service._internal();
 
-  static const _accessKeyId     = '7bf46d1daef0f628e6d7bf852bd350eb';
-  static const _secretAccessKey = '161aaff1e976a20e080531b3d2f69ac8ff2dac55e248e815870d19871c37efd7';
+  static const _accessKeyId     = NotificationSecrets.r2AccessKeyId;
+  static const _secretAccessKey = NotificationSecrets.r2SecretAccessKey;
   static const _bucket          = 'haraj-yemen';
   static const _endpoint        = 'https://8511980a3826f782ba87ff65ac609922.r2.cloudflarestorage.com';
   static const _publicUrl       = 'https://pub-bce8f2e609b447c8a647dc885a8e9c85.r2.dev';

@@ -3,7 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 
 class CloudinaryService {
-  static const String _cloudName = 'dybmx8sus';
+  static const String _cloudName = 'dh4jyyirw';
   static const String _uploadPreset = 'haraj_yemen';
   static const String _uploadUrl = 'https://api.cloudinary.com/v1_1/$_cloudName/image/upload';
 

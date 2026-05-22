@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'notification_secrets.dart';
 
 class AuthService {
   static final AuthService _instance = AuthService._internal();
@@ -57,23 +60,26 @@ class AuthService {
     }
 
     try {
-      final completer = _PhoneVerificationCompleter();
+      final completer = Completer<PhoneVerificationResult>();
 
       await _auth.verifyPhoneNumber(
         phoneNumber: phoneNumber,
-        verificationCompleted: (PhoneAuthCredential credential) async {
-          // التحقق التلقائي (Android فقط)
-          completer.complete(PhoneVerificationResult.autoVerified(credential));
+        verificationCompleted: (PhoneAuthCredential credential) {
+          if (!completer.isCompleted) {
+            completer.complete(PhoneVerificationResult.autoVerified(credential));
+          }
         },
         verificationFailed: (FirebaseAuthException e) {
-          String errorMsg = _getArabicError(e.code);
+          final errorMsg = _getArabicError(e.code);
           onError(errorMsg);
-          completer.completeError(errorMsg);
+          if (!completer.isCompleted) completer.completeError(errorMsg);
         },
         codeSent: (String verificationId, int? resendToken) {
           _verificationId = verificationId;
           _resendToken = resendToken;
-          completer.complete(PhoneVerificationResult.codeSent(verificationId));
+          if (!completer.isCompleted) {
+            completer.complete(PhoneVerificationResult.codeSent(verificationId));
+          }
         },
         codeAutoRetrievalTimeout: (String verificationId) {
           _verificationId = verificationId;
@@ -122,8 +128,9 @@ class AuthService {
     }
   }
 
-  // هل المستخدم في وضع تجريبي
+  // هل المستخدم في وضع تجريبي (الويب لا يدعم هذا الوضع)
   static Future<bool> isDemoUser() async {
+    if (kIsWeb) return false;
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool('is_demo_user') ?? false;
   }
@@ -211,7 +218,7 @@ class AuthService {
     }
   }
 
-  // إنشاء حساب بالإيميل
+  // إنشاء حساب بالإيميل — يُعاد حساب مؤقت ويُحذف إذا لم يتحقق المستخدم
   Future<UserCredential> registerWithEmail({
     required String email,
     required String password,
@@ -222,10 +229,36 @@ class AuthService {
         password: password,
       );
       try { await _saveEmailUserProfile(result.user!); } catch (_) {}
+      await _auth.signOut();
       return result;
     } on FirebaseAuthException catch (e) {
       throw Exception(_getArabicEmailError(e.code));
     }
+  }
+
+  // إرسال OTP للتسجيل — يحفظ في Firestore
+  Future<String> createRegistrationOtp(String email) async {
+    final otp = _generateOtp();
+    await _db.collection('email_verifications').doc(email.trim()).set({
+      'otp': otp,
+      'email': email.trim(),
+      'createdAt': FieldValue.serverTimestamp(),
+      'expiresAt': DateTime.now().add(const Duration(minutes: 10)).toIso8601String(),
+      'verified': false,
+    });
+    return otp;
+  }
+
+  // التحقق من OTP التسجيل
+  Future<void> verifyRegistrationOtp(String email, String otp) async {
+    final doc = await _db.collection('email_verifications').doc(email.trim()).get();
+    if (!doc.exists) throw Exception('لم يتم إرسال الرمز، أعد المحاولة');
+    final data = doc.data()!;
+    if (data['used'] == true) throw Exception('تم استخدام هذا الرمز من قبل');
+    final expiresAt = DateTime.parse(data['expiresAt']);
+    if (DateTime.now().isAfter(expiresAt)) throw Exception('انتهت صلاحية الرمز، أعد الإرسال');
+    if (data['otp'] != otp.trim()) throw Exception('رمز التحقق غير صحيح');
+    await doc.reference.update({'used': true, 'verified': true});
   }
 
   Future<void> _saveEmailUserProfile(User user) async {
@@ -298,8 +331,6 @@ class AuthService {
       'firebase-adminsdk-fbsvc@haraj-yemen-app.iam.gserviceaccount.com';
   static const _serviceProjectId = 'haraj-yemen-app';
   static const _tokenUri = 'https://oauth2.googleapis.com/token';
-  static const _servicePrivateKey =
-      '-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDvxg8HDL9Uz/CV\n5eiOJQo+goWel3tjgy8+rdG1QYF3Qk7GJu7F7yxxOv9vp0QJDHgQj3gY3JIq0Qhk\ndHZNwgbFZX+Ln4aL03Oh8TEnouzi9bPJzKi7ZxeK87Djw9AJDaDby913oBtVjOq7\nsnQmWsMDusIgkP4Gfz9WEzErndAPNH5777nLtJrv9WVNx8lnqwJiznarnk2t07a1\nlownwRRsVIH46In9JPb7O/mphp2/x8CBHFY27JjmHohSsC7EbU2CozjosjA9E1ZP\neGdNfI2LlFq3c2nfuKuz1wkQLPN4QO7xgkb+2E/+Dr/wWvCeCjtXBVeUVP9tDlxC\nai3TJjbHAgMBAAECggEABDPX0OsmR1mbATrrB+LE+oeAdAvPpn+GynXIISx+v7+y\ncG1U7gndIOGZ1zPP+3Xz0hvRomNApJjOqYQTtr/Z1900ORbuCBwIAM9Lae3EcniV\nUsolgvNcSZvafoN7bU0x2T201K3tDLjQPG309InOtTgGwwSyOcbtLe20L5bag18C\n0FryWqpR6VBC3MorrBpudXok1IW3xgTcsaPPUcBAIgFty7FpB0h2TmoXLP8PVU58\n66GqIjAjb5HzFPCT2R8IltVM/TD2mn+DXpKff2cGlwXB1IgqBsy6mIXoULE5qXm5\nGCKtahbZCz4NaSZwAlH0rLlOEBuZ2sHLyGb4VWzrkQKBgQD+nw+78ikLJAA6cSgy\nOiYlXBs+Xp7IV/sSfpf/dJmHtJvdROGqJxxD5bbVVIkzuQgtpx3mn7o2D+oIeQ9S\n4kG0YhAe+Qu5MkKNybQt5xPIdykGu+yYWdb07f7MX7k6tpKa2zBv5yPL8lnQ6h5F\nwKtld+PAooqcrVXLN0y8Q0j/SwKBgQDxEmqa+7dpi5W9uEnoF4GeMrGEX3LAYSUm\nG9dCgjg3YHR9hpchpnQ2h2QZsHYieofOZ5ti/ovp9Ysfq6UkAs8/RGgNpKEDa4ON\nXosnkKMpqAdLJumloE8NtYmZ3NSqCizwRjZ0HgkZ8N3xuljvotaqL9BKaLpZAvTE\n2ly48Jss9QKBgAUn1Vq54YjfNr34MpcpxEH3ZnnR0qc92NCcDZnXk5BC4PEPBv66\nAgGB8jzJlGmesoKyIpHb5BpaIiP/x4anHCt53NeztUAPu3dBgUt4pVbmysbfIUBI\neWjGNOWQfqCot7k4/PcXGAt2IclwJCLHbvEEB3GMGQBpJhaSTRR2zFCXAoGBALTQ\n320HyHY94D7A745Js0r5MvTasrNhKf//eeHE0m2Wx0kvnkP7GcecnZQ3KySJSzuh\nsob57e+54HQMxnzQLqqBoJo7FRn/llh+xVkTv44LHg1cTnuQVjsuIttpK4muwC4o\nO8e0j5cJdy9MWlDDjsdvvYdSLhN9iCHutwVwUrPRAoGAS433k01ZUwZT6izEV38I\n5rCaMcFeMIMHtiwM6zbnR67x5RUV/HUog+WKe7k2E7QlBakYCPTLsBNDNi2FVJuP\nN6CxK/BxaRrr5J2CyPWTxhIzQ3VdwDURbOf3eBdclv9ifIKRXCZY+tmoE6XBrDRO\ngHLCrUEotx6CpqlY68Bw8Eg=\n-----END PRIVATE KEY-----\n';
 
   String? _adminToken;
   DateTime? _adminTokenExpiry;
@@ -318,7 +349,7 @@ class AuthService {
       'iat': now.millisecondsSinceEpoch ~/ 1000,
       'exp': (now.millisecondsSinceEpoch ~/ 1000) + 3600,
     });
-    final signed = jwt.sign(RSAPrivateKey(_servicePrivateKey), algorithm: JWTAlgorithm.RS256);
+    final signed = jwt.sign(RSAPrivateKey(NotificationSecrets.fcmPrivateKey), algorithm: JWTAlgorithm.RS256);
     final response = await http.post(
       Uri.parse(_tokenUri),
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -474,73 +505,3 @@ class PhoneVerificationResult {
   }
 }
 
-// مساعد لإتمام العمليات غير المتزامنة
-class _PhoneVerificationCompleter {
-  PhoneVerificationResult? _result;
-  String? _error;
-  final List<Function(PhoneVerificationResult)> _successListeners = [];
-  final List<Function(dynamic)> _errorListeners = [];
-  bool _completed = false;
-
-  void complete(PhoneVerificationResult result) {
-    if (_completed) return;
-    _completed = true;
-    _result = result;
-    for (final listener in _successListeners) {
-      listener(result);
-    }
-  }
-
-  void completeError(dynamic error) {
-    if (_completed) return;
-    _completed = true;
-    _error = error.toString();
-    for (final listener in _errorListeners) {
-      listener(error);
-    }
-  }
-
-  Future<PhoneVerificationResult> get future async {
-    if (_result != null) return _result!;
-    if (_error != null) throw Exception(_error);
-
-    final completer = _Completer<PhoneVerificationResult>();
-    _successListeners.add(completer.complete);
-    _errorListeners.add(completer.completeError);
-    return completer.future;
-  }
-}
-
-class _Completer<T> {
-  T? _value;
-  dynamic _error;
-  bool _completed = false;
-  Function(T)? _onComplete;
-  Function(dynamic)? _onError;
-
-  void complete(T value) {
-    _completed = true;
-    _value = value;
-    _onComplete?.call(value);
-  }
-
-  void completeError(dynamic error) {
-    _completed = true;
-    _error = error;
-    _onError?.call(error);
-  }
-
-  Future<T> get future async {
-    if (_completed) {
-      if (_error != null) throw _error!;
-      return _value as T;
-    }
-    return Future<T>(() async {
-      while (!_completed) {
-        await Future.delayed(const Duration(milliseconds: 50));
-      }
-      if (_error != null) throw _error!;
-      return _value as T;
-    });
-  }
-}

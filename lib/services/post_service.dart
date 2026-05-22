@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/post_model.dart';
 import 'auth_service.dart';
-import 'r2_service.dart';
+import 'firebase_storage_service.dart';
 
 class PostService {
   static final PostService _instance = PostService._internal();
@@ -16,7 +16,7 @@ class PostService {
   PostService._internal();
 
   FirebaseFirestore get _db => FirebaseFirestore.instance;
-  final _r2 = R2Service();
+  final _firebaseStorage = FirebaseStorageService();
   FirebaseAuth get _auth => FirebaseAuth.instance;
   final Uuid _uuid = const Uuid();
 
@@ -58,10 +58,10 @@ class PostService {
     }
   }
 
-  // رفع صورة إلى R2
+  // رفع صورة إلى Firebase Storage
   Future<String> uploadImage(XFile xfile, String postId) async {
     final compressed = await compressImage(xfile);
-    return await _r2.uploadImage(compressed ?? xfile);
+    return await _firebaseStorage.uploadImage(compressed ?? xfile);
   }
 
   // رفع مجموعة صور (6 كحد أقصى)
@@ -101,17 +101,12 @@ class PostService {
   // التحقق من حد 3 إعلانات يومياً
   Future<void> _checkDailyPostLimit(String uid) async {
     final now = DateTime.now();
-    final midnight = DateTime(now.year, now.month, now.day);
+    final startOfDay = DateTime(now.year, now.month, now.day);
     final snap = await _posts
         .where('user_id', isEqualTo: uid)
+        .where('created_at', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
         .get();
-    final todayCount = snap.docs.where((d) {
-      if (d['status'] == 'deleted') return false;
-      final ts = d['created_at'];
-      if (ts == null) return false;
-      final date = (ts as Timestamp).toDate();
-      return date.isAfter(midnight);
-    }).length;
+    final todayCount = snap.docs.where((d) => d['status'] != 'deleted').length;
     if (todayCount >= 3) {
       throw Exception('لقد تجاوزت الحد المسموح به (3 إعلانات يومياً). حاول غداً.');
     }
