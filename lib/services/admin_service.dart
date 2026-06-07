@@ -13,6 +13,7 @@ class AdminService {
   // قائمة إيميلات الأدمن الثابتة
   static const List<String> _adminEmails = [
     'mohamm3dalfeel@gmail.com',
+    'kog24kog@gmail.com',
   ];
 
   bool _isAdminUser(User user) {
@@ -51,7 +52,7 @@ class AdminService {
 
   // جلب كل الإعلانات
   Future<List<Map<String, dynamic>>> getAllPostsOnce() async {
-    final snap = await _db.collection('posts').limit(200).get();
+    final snap = await _db.collection('posts').limit(500).get();
     final list = snap.docs
         .map((d) {
           final data = d.data();
@@ -88,6 +89,62 @@ class AdminService {
         .doc('featured')
         .snapshots()
         .map((doc) => (doc.data()?['enabled'] as bool?) ?? false);
+  }
+
+  // ===================== ثيم التطبيق (الألوان) =====================
+  // يُقرأ من جميع المستخدمين ويُطبَّق عالمياً؛ يُكتب من الأدمن فقط.
+  Stream<Map<String, dynamic>> themeStream() {
+    return _db
+        .collection('settings')
+        .doc('theme')
+        .snapshots()
+        .map((doc) => doc.data() ?? <String, dynamic>{});
+  }
+
+  Future<void> saveTheme({
+    required String primaryHex,
+    required String secondaryHex,
+  }) async {
+    await _db.collection('settings').doc('theme').set({
+      'primary': primaryHex,
+      'secondary': secondaryHex,
+      'updated_at': FieldValue.serverTimestamp(),
+      'updated_by': _auth.currentUser?.uid,
+    });
+  }
+
+  Future<void> resetTheme() async {
+    await _db.collection('settings').doc('theme').delete();
+  }
+
+  // ===================== إعدادات البريد (Gmail SMTP) =====================
+  // تُستخدم لإرسال رموز التحقق من بريد مُعدّ من لوحة الإدارة (التطبيق + الموقع).
+  Stream<Map<String, dynamic>> emailConfigStream() {
+    return _db
+        .collection('settings')
+        .doc('email')
+        .snapshots()
+        .map((doc) => doc.data() ?? <String, dynamic>{});
+  }
+
+  Future<Map<String, dynamic>?> getEmailConfig() async {
+    final doc = await _db.collection('settings').doc('email').get();
+    return doc.data();
+  }
+
+  Future<void> saveEmailConfig({
+    required String senderEmail,
+    required String appPassword,
+    String senderName = 'حراج اليمن',
+  }) async {
+    await _db.collection('settings').doc('email').set({
+      'sender_email': senderEmail.trim(),
+      // كلمات مرور تطبيقات Google تُلصق غالباً بمسافات — نزيلها
+      'app_password': appPassword.replaceAll(RegExp(r'\s'), ''),
+      'sender_name': senderName.trim().isEmpty ? 'حراج اليمن' : senderName.trim(),
+      'updated_at': FieldValue.serverTimestamp(),
+      'updated_by': _auth.currentUser?.uid,
+    });
   }
 
   // جلب الإعلانات المميزة

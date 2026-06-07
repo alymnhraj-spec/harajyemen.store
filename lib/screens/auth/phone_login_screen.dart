@@ -108,7 +108,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'تم إرسال رمز من 6 أرقام إلى\n$email',
+              'تم إرسال رمز من 4 أرقام إلى\n$email',
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
             ),
@@ -117,9 +117,9 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
               controller: otpController,
               keyboardType: TextInputType.number,
               textAlign: TextAlign.center,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)],
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
               style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 8),
-              decoration: const InputDecoration(hintText: '______'),
+              decoration: const InputDecoration(hintText: '____'),
             ),
           ],
         ),
@@ -246,6 +246,63 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
     );
   }
 
+  Future<bool?> _showOtpVerifyDialog(String email, String sentOtp) async {
+    final otpCtrl = TextEditingController();
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('رمز التحقق', textAlign: TextAlign.right),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.mark_email_read_outlined, size: 52, color: AppColors.primary),
+            const SizedBox(height: 12),
+            Text(
+              'تم إرسال رمز مكون من 4 أرقام إلى:\n$email',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.5),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: otpCtrl,
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
+              style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, letterSpacing: 10),
+              decoration: const InputDecoration(hintText: '----'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              try {
+                final newOtp = await _authService.createRegistrationOtp(email);
+                await EmailService.sendOtp(toEmail: email, otp: newOtp, type: 'register');
+                if (ctx.mounted) _showSnack('تم إعادة الإرسال', AppColors.primary);
+              } catch (_) {}
+            },
+            child: const Text('إعادة إرسال'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await _authService.verifyRegistrationOtp(email, otpCtrl.text);
+                if (ctx.mounted) Navigator.pop(ctx, true);
+              } catch (e) {
+                if (ctx.mounted) {
+                  _showSnack(e.toString().replaceAll('Exception: ', ''), AppColors.accent);
+                }
+              }
+            },
+            child: const Text('تحقق'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showSnack(String msg, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg), backgroundColor: color),
@@ -258,18 +315,28 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
 
     try {
       if (_isRegisterMode) {
-        await _authService.registerWithEmail(
-          email: _emailController.text,
-          password: _passwordController.text,
-        );
+        final email = _emailController.text.trim();
+        final password = _passwordController.text;
+        // إرسال OTP للإيميل
+        final otp = await _authService.createRegistrationOtp(email);
+        await EmailService.sendOtp(toEmail: email, otp: otp, type: 'register');
+        if (!mounted) return;
+        // عرض نموذج إدخال الرمز
+        final verified = await _showOtpVerifyDialog(email, otp);
+        if (verified == true && mounted) {
+          // إنشاء الحساب بعد التحقق
+          await _authService.registerWithEmail(email: email, password: password);
+          if (mounted) {
+            _showSnack('تم إنشاء الحساب بنجاح! سجّل دخولك الآن', Colors.green);
+            setState(() => _isRegisterMode = false);
+          }
+        }
       } else {
         await _authService.signInWithEmail(
-          email: _emailController.text,
+          email: _emailController.text.trim(),
           password: _passwordController.text,
         );
-      }
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/home');
+        if (mounted) Navigator.of(context).pushReplacementNamed('/home');
       }
     } catch (e) {
       if (mounted) {
@@ -277,6 +344,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
           SnackBar(
             content: Text(e.toString().replaceAll('Exception: ', '')),
             backgroundColor: AppColors.accent,
+            duration: const Duration(seconds: 5),
           ),
         );
       }
@@ -304,7 +372,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                   borderRadius: BorderRadius.circular(22),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.primary.withOpacity(0.3),
+                      color: AppColors.primary.withValues(alpha: 0.3),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -375,7 +443,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                             minimumSize: Size.zero,
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
-                          child: const Text(
+                          child: Text(
                             'نسيت كلمة المرور؟',
                             style: TextStyle(fontSize: 13, color: AppColors.primary),
                           ),
@@ -424,7 +492,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                         _isRegisterMode
                             ? 'لديك حساب بالفعل؟ تسجيل الدخول'
                             : 'ليس لديك حساب؟ إنشاء حساب جديد',
-                        style: const TextStyle(color: AppColors.primary),
+                        style: TextStyle(color: AppColors.primary),
                       ),
                     ),
                   ],

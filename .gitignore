@@ -56,3 +56,12 @@ GoogleService-Info.plist
 *.p8
 *.jks
 *.mobileprovision
+*.pem
+
+# Node (server deps — تُثبَّت على Render عبر npm install)
+node_modules/
+/server/db.sqlite*
+/server/db.json
+
+# أدوات محلية
+.claude/

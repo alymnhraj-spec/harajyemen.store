@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -16,6 +17,18 @@ import 'services/notification_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+  };
+
+  await runZonedGuarded(() async {
+    await _initApp();
+  }, (error, stack) {
+    debugPrint('CRASH: $error\n$stack');
+  });
+}
+
+Future<void> _initApp() async {
   if (!kIsWeb) {
     await SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
@@ -30,9 +43,7 @@ void main() async {
   } catch (_) {}
 
   if (!kIsWeb) {
-    try {
-      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-    } catch (_) {}
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     try {
       await NotificationService().initialize();
     } catch (_) {}
@@ -41,8 +52,39 @@ void main() async {
   runApp(const HarajYemenApp());
 }
 
-class HarajYemenApp extends StatelessWidget {
+class HarajYemenApp extends StatefulWidget {
   const HarajYemenApp({super.key});
+
+  @override
+  State<HarajYemenApp> createState() => _HarajYemenAppState();
+}
+
+class _HarajYemenAppState extends State<HarajYemenApp> {
+  StreamSubscription<Map<String, dynamic>>? _themeSub;
+
+  @override
+  void initState() {
+    super.initState();
+    // الاستماع لإعدادات الثيم من لوحة الإدارة وتطبيقها على كل المستخدمين
+    try {
+      _themeSub = AdminService().themeStream().listen((cfg) {
+        final primary = AppColors.fromHex(cfg['primary'] as String?);
+        final secondary = AppColors.fromHex(cfg['secondary'] as String?);
+        if (primary == null && secondary == null) {
+          AppColors.resetTheme();
+        } else {
+          AppColors.applyTheme(primary: primary, secondary: secondary);
+        }
+        if (mounted) setState(() {});
+      }, onError: (_) {});
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _themeSub?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -136,9 +178,9 @@ class _AuthGateState extends State<_AuthGate> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    return Scaffold(
       backgroundColor: AppColors.primary,
-      body: Center(
+      body: const Center(
         child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
       ),
     );

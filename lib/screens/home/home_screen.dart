@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../../models/post_model.dart';
@@ -13,6 +14,7 @@ import '../../services/auth_service.dart';
 import '../../services/chat_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/post_card.dart';
+import '../../widgets/animations.dart';
 import '../post/post_detail_screen.dart';
 import '../post/add_post_screen.dart';
 import '../admin/admin_screen.dart';
@@ -29,6 +31,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final _postService = PostService();
   final _locationService = LocationService();
+  final _unreadStream = ChatService().getTotalUnread();
 
   String? _selectedGovernorateId;
   String _selectedCategoryId = '';
@@ -174,7 +177,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   MaterialPageRoute(builder: (_) => const ConversationsScreen()),
                                 ),
                                 icon: StreamBuilder<int>(
-                                  stream: ChatService().getTotalUnread(),
+                                  stream: _unreadStream,
                                   builder: (context, snap) {
                                     final unread = snap.data ?? 0;
                                     return Stack(
@@ -204,8 +207,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             const SizedBox(width: 4),
                             TextButton.icon(
                               onPressed: _openAddPost,
-                              icon: const Icon(Icons.add, size: 16, color: AppColors.primary),
-                              label: const Text('نشر إعلان',
+                              icon: Icon(Icons.add, size: 16, color: AppColors.primary),
+                              label: Text('نشر إعلان',
                                   style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 13)),
                               style: TextButton.styleFrom(
                                 backgroundColor: Colors.white,
@@ -442,7 +445,7 @@ class _HomeScreenState extends State<HomeScreen> {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
           decoration: BoxDecoration(
-            color: isSelected ? AppColors.secondary.withOpacity(0.12) : Colors.transparent,
+            color: isSelected ? AppColors.secondary.withValues(alpha: 0.12) : Colors.transparent,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: isSelected ? AppColors.secondary : const Color(0xFFDDDDDD),
@@ -586,7 +589,7 @@ class _HomeScreenState extends State<HomeScreen> {
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.06),
+                color: Colors.black.withValues(alpha: 0.06),
                 blurRadius: 6,
                 offset: const Offset(0, 2),
               ),
@@ -639,7 +642,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         const Spacer(),
                         Text(
                           post.priceDisplay,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.primary,
                             fontWeight: FontWeight.w800,
                             fontSize: 17,
@@ -709,7 +712,7 @@ class _HomeScreenState extends State<HomeScreen> {
             color: Colors.white,
             boxShadow: [
               BoxShadow(
-                color: Colors.amber.withOpacity(0.15),
+                color: Colors.amber.withValues(alpha: 0.15),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -782,7 +785,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         const Spacer(),
                         if (priceText.isNotEmpty)
                           Text(priceText,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: AppColors.primary,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 13,
@@ -805,39 +808,41 @@ class _HomeScreenState extends State<HomeScreen> {
       itemCount: 5,
       itemBuilder: (_, __) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
-        child: Container(
-          height: 140,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 150,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFEEEEEE),
-                  borderRadius: BorderRadius.horizontal(right: Radius.circular(12)),
-                ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(height: 16, width: double.infinity, color: const Color(0xFFEEEEEE)),
-                      const SizedBox(height: 8),
-                      Container(height: 14, width: 200, color: const Color(0xFFF5F5F5)),
-                      const Spacer(),
-                      Container(height: 18, width: 120, color: const Color(0xFFEEEEEE)),
-                      const SizedBox(height: 8),
-                      Container(height: 12, width: 160, color: const Color(0xFFF5F5F5)),
-                    ],
+        child: ShimmerArea(
+          child: Container(
+            height: 140,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 150,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.horizontal(right: Radius.circular(AppRadius.lg)),
                   ),
                 ),
-              ),
-            ],
+                const Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ShimmerBox(height: 16, width: double.infinity),
+                        SizedBox(height: 8),
+                        ShimmerBox(height: 14, width: 200),
+                        Spacer(),
+                        ShimmerBox(height: 18, width: 120),
+                        SizedBox(height: 8),
+                        ShimmerBox(height: 12, width: 160),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -900,6 +905,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
   AppBar _buildAppBar() {
     return AppBar(
+      backgroundColor: Colors.transparent,
+      systemOverlayStyle: SystemUiOverlayStyle.light,
+      flexibleSpace: Container(
+        decoration: BoxDecoration(
+          gradient: AppGradients.brand,
+          boxShadow: const [
+            BoxShadow(color: Color(0x1F000000), blurRadius: 8, offset: Offset(0, 2)),
+          ],
+        ),
+      ),
       title: _isSearchActive
           ? TextField(
               controller: _searchController,
@@ -962,21 +977,40 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _govChip(String? id, String name) {
     final isSelected = _selectedGovernorateId == id;
     return Padding(
-      padding: const EdgeInsets.only(left: 6),
-      child: FilterChip(
-        label: Text(name),
-        selected: isSelected,
-        onSelected: (_) => setState(() => _selectedGovernorateId = id),
-        selectedColor: AppColors.primary,
-        checkmarkColor: Colors.white,
-        labelStyle: TextStyle(
-          color: isSelected ? Colors.white : AppColors.textPrimary,
-          fontSize: 13,
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+      padding: const EdgeInsets.only(left: 8),
+      child: PressableScale(
+        scale: 0.92,
+        onTap: () => setState(() => _selectedGovernorateId = id),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 7),
+          decoration: BoxDecoration(
+            gradient: isSelected ? AppGradients.brand : null,
+            color: isSelected ? null : Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            border: Border.all(
+              color: isSelected ? AppColors.primary : AppColors.divider,
+            ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.28),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Text(
+            name,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              color: isSelected ? Colors.white : AppColors.textSecondary,
+            ),
+          ),
         ),
-        backgroundColor: Colors.white,
-        side: BorderSide(color: isSelected ? AppColors.primary : AppColors.divider),
-        padding: const EdgeInsets.symmetric(horizontal: 4),
       ),
     );
   }
@@ -1000,21 +1034,32 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _categoryChip(String id, String name, String icon) {
     final isSelected = _selectedCategoryId == id;
     return Padding(
-      padding: const EdgeInsets.only(left: 6),
-      child: FilterChip(
-        label: Text('$icon $name'),
-        selected: isSelected,
-        onSelected: (_) => setState(() => _selectedCategoryId = id),
-        selectedColor: AppColors.secondary.withOpacity(0.2),
-        checkmarkColor: AppColors.secondary,
-        labelStyle: TextStyle(
-          color: isSelected ? AppColors.secondary : AppColors.textSecondary,
-          fontSize: 12,
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+      padding: const EdgeInsets.only(left: 8),
+      child: PressableScale(
+        scale: 0.92,
+        onTap: () => setState(() => _selectedCategoryId = id),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? AppColors.secondary.withValues(alpha: 0.16)
+                : Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            border: Border.all(
+              color: isSelected ? AppColors.secondaryDeep : AppColors.divider,
+            ),
+          ),
+          child: Text(
+            '$icon $name',
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              color: isSelected ? AppColors.secondaryDeep : AppColors.textSecondary,
+            ),
+          ),
         ),
-        backgroundColor: Colors.white,
-        side: BorderSide(color: isSelected ? AppColors.secondary : AppColors.divider),
-        padding: const EdgeInsets.symmetric(horizontal: 2),
       ),
     );
   }
@@ -1061,7 +1106,10 @@ class _HomeScreenState extends State<HomeScreen> {
         crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 0.68,
       ),
       itemCount: posts.length,
-      itemBuilder: (_, i) => PostCard(post: posts[i], onTap: () => _openPost(posts[i])),
+      itemBuilder: (_, i) => FadeSlideIn(
+        index: i,
+        child: PostCard(post: posts[i], onTap: () => _openPost(posts[i])),
+      ),
     );
   }
 
@@ -1117,7 +1165,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   childAspectRatio: 0.68,
                 ),
                 delegate: SliverChildBuilderDelegate(
-                  (_, i) => PostCard(post: posts[i], onTap: () => _openPost(posts[i])),
+                  (_, i) => FadeSlideIn(
+                    index: i,
+                    child: PostCard(post: posts[i], onTap: () => _openPost(posts[i])),
+                  ),
                   childCount: posts.length,
                 ),
               ),
@@ -1159,7 +1210,7 @@ class _HomeScreenState extends State<HomeScreen> {
           color: Colors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.amber.withOpacity(0.2),
+              color: Colors.amber.withValues(alpha: 0.2),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -1225,7 +1276,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
                       if (priceText.isNotEmpty)
                         Text(priceText,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.primary,
                               fontWeight: FontWeight.w700,
                               fontSize: 12,
@@ -1249,7 +1300,10 @@ class _HomeScreenState extends State<HomeScreen> {
         crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 0.68,
       ),
       itemCount: _searchResults.length,
-      itemBuilder: (_, i) => PostCard(post: _searchResults[i], onTap: () => _openPost(_searchResults[i])),
+      itemBuilder: (_, i) => FadeSlideIn(
+        index: i,
+        child: PostCard(post: _searchResults[i], onTap: () => _openPost(_searchResults[i])),
+      ),
     );
   }
 
@@ -1266,22 +1320,7 @@ class _HomeScreenState extends State<HomeScreen> {
         crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 0.68,
       ),
       itemCount: 6,
-      itemBuilder: (_, __) => Card(
-        child: Column(children: [
-          Expanded(flex: 3, child: Container(decoration: BoxDecoration(
-            color: Colors.grey[300],
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-          ))),
-          Expanded(flex: 2, child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Container(height: 12, color: Colors.grey[300]),
-              const SizedBox(height: 6),
-              Container(height: 10, width: 80, color: Colors.grey[200]),
-            ]),
-          )),
-        ]),
-      ),
+      itemBuilder: (_, __) => const PostCardSkeleton(),
     );
   }
 
@@ -1294,14 +1333,45 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildEmpty({String? message}) {
-    return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      const Icon(Icons.inbox_outlined, size: 80, color: AppColors.divider),
-      const SizedBox(height: 16),
-      Text(
-        message ?? 'لا توجد إعلانات',
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppColors.textSecondary),
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.6, end: 1.0),
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.elasticOut,
+            builder: (_, value, child) => Transform.scale(scale: value, child: child),
+            child: Container(
+              width: 128,
+              height: 128,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.primary.withValues(alpha: 0.07),
+              ),
+              child: Icon(Icons.inbox_outlined,
+                  size: 64, color: AppColors.primary.withValues(alpha: 0.55)),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            message ?? 'لا توجد إعلانات بعد',
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'كن أول من ينشر هنا 👋',
+            style: Theme.of(context)
+                .textTheme
+                .bodyMedium
+                ?.copyWith(color: AppColors.textSecondary),
+          ),
+        ],
       ),
-    ]));
+    );
   }
 
   BottomNavigationBar _buildBottomNav() {
@@ -1321,7 +1391,7 @@ class _HomeScreenState extends State<HomeScreen> {
         const BottomNavigationBarItem(icon: SizedBox.shrink(), label: ''),
         BottomNavigationBarItem(
           icon: StreamBuilder<int>(
-            stream: ChatService().getTotalUnread(),
+            stream: _unreadStream,
             builder: (context, snapshot) {
               final unread = snapshot.data ?? 0;
               return Stack(
@@ -1347,7 +1417,7 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
           activeIcon: StreamBuilder<int>(
-            stream: ChatService().getTotalUnread(),
+            stream: _unreadStream,
             builder: (context, snapshot) {
               final unread = snapshot.data ?? 0;
               return Stack(
@@ -1379,11 +1449,22 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  FloatingActionButton _buildFab() {
-    return FloatingActionButton(
-      onPressed: _openAddPost,
-      backgroundColor: AppColors.primary,
-      child: const Icon(Icons.add, color: Colors.white, size: 28),
+  Widget _buildFab() {
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: AppGradients.brandVibrant,
+        boxShadow: AppShadows.brandGlow,
+      ),
+      child: FloatingActionButton(
+        onPressed: _openAddPost,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        highlightElevation: 0,
+        focusElevation: 0,
+        hoverElevation: 0,
+        child: const Icon(Icons.add, color: Colors.white, size: 30),
+      ),
     );
   }
 
@@ -1404,13 +1485,13 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Row(
                 children: [
                   Icon(Icons.notifications_outlined, color: AppColors.primary),
-                  SizedBox(width: 8),
-                  Text('الإشعارات', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  const SizedBox(width: 8),
+                  const Text('الإشعارات', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                 ],
               ),
             ),
@@ -1454,9 +1535,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         final data = docs[i].data();
                         final ts = (data['created_at'] as Timestamp?)?.toDate();
                         return ListTile(
-                          leading: const CircleAvatar(
+                          leading: CircleAvatar(
                             backgroundColor: AppColors.primary,
-                            child: Icon(Icons.notifications, color: Colors.white, size: 18),
+                            child: const Icon(Icons.notifications, color: Colors.white, size: 18),
                           ),
                           title: Text(data['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                           subtitle: Text(data['body'] ?? '', style: const TextStyle(fontSize: 12)),

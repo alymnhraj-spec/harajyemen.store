@@ -290,9 +290,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             onPageChanged: (index, _) =>
                 setState(() => _currentImageIndex = index),
           ),
-          itemBuilder: (_, index, __) => GestureDetector(
-            onTap: () => _openImageFullscreen(index),
-            child: CachedNetworkImage(
+          itemBuilder: (_, index, __) {
+            Widget image = CachedNetworkImage(
               imageUrl: _post.images[index],
               fit: BoxFit.cover,
               width: double.infinity,
@@ -301,8 +300,16 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 color: AppColors.background,
                 child: const Icon(Icons.broken_image, size: 60, color: AppColors.divider),
               ),
-            ),
-          ),
+            );
+            // أول صورة ترث Hero لانتقال سلس من بطاقة الإعلان.
+            if (index == 0 && _post.id != null) {
+              image = Hero(tag: 'post-image-${_post.id}', child: image);
+            }
+            return GestureDetector(
+              onTap: () => _openImageFullscreen(index),
+              child: image,
+            );
+          },
         ),
 
         // مؤشر الصور
@@ -341,7 +348,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.1),
+            color: AppColors.primary.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
@@ -399,9 +406,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color != null ? color.withOpacity(0.08) : AppColors.background,
+        color: color != null ? color.withValues(alpha: 0.08) : AppColors.background,
         borderRadius: BorderRadius.circular(8),
-        border: color != null ? Border.all(color: color.withOpacity(0.4)) : null,
+        border: color != null ? Border.all(color: color.withValues(alpha: 0.4)) : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -427,9 +434,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       child: Row(
         children: [
           CircleAvatar(
-            backgroundColor: AppColors.primary.withOpacity(0.2),
+            backgroundColor: AppColors.primary.withValues(alpha: 0.2),
             radius: 24,
-            child: const Icon(Icons.person, color: AppColors.primary),
+            child: Icon(Icons.person, color: AppColors.primary),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -577,7 +584,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 label: const Text('اتصال'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.primary,
-                  side: const BorderSide(color: AppColors.primary),
+                  side: BorderSide(color: AppColors.primary),
                   minimumSize: const Size(0, 52),
                 ),
               ),

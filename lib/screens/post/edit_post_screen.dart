@@ -340,15 +340,15 @@ class _EditPostScreenState extends State<EditPostScreen> {
         width: 90, height: 90,
         margin: const EdgeInsets.only(left: 8),
         decoration: BoxDecoration(
-          color: AppColors.primary.withOpacity(0.08),
+          color: AppColors.primary.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
         ),
-        child: const Column(
+        child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.camera_alt_outlined, size: 28, color: AppColors.primary),
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text('كاميرا', style: TextStyle(fontSize: 11, color: AppColors.primary)),
           ],
         ),

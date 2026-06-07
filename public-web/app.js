@@ -988,12 +988,18 @@ async function showOtpStep(email, firebaseUser, purpose) {
     boxes[0]?.focus();
 
     try {
-        await fetch(`${API_BASE}/auth/send-otp`, {
+        const resp = await fetch(`${API_BASE}/auth/send-otp`, {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ email, purpose: purpose || "login" }),
         });
-    } catch (_) {}
+        if (!resp.ok) {
+            const data = await resp.json().catch(() => ({}));
+            setAuthError(data.error || "تعذّر إرسال رمز التحقق. حاول مرة أخرى لاحقاً.");
+        }
+    } catch (_) {
+        setAuthError("تعذّر الاتصال بالخادم لإرسال الرمز. تحقّق من اتصالك بالإنترنت.");
+    }
 }
 
 function hideOtpStep() {

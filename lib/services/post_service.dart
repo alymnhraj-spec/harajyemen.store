@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/post_model.dart';
 import 'auth_service.dart';
-import 'firebase_storage_service.dart';
+import 'r2_service.dart';
 
 class PostService {
   static final PostService _instance = PostService._internal();
@@ -16,7 +16,7 @@ class PostService {
   PostService._internal();
 
   FirebaseFirestore get _db => FirebaseFirestore.instance;
-  final _firebaseStorage = FirebaseStorageService();
+  final _r2Storage = R2Service();
   FirebaseAuth get _auth => FirebaseAuth.instance;
   final Uuid _uuid = const Uuid();
 
@@ -58,10 +58,10 @@ class PostService {
     }
   }
 
-  // رفع صورة إلى Firebase Storage
+  // رفع صورة إلى R2
   Future<String> uploadImage(XFile xfile, String postId) async {
     final compressed = await compressImage(xfile);
-    return await _firebaseStorage.uploadImage(compressed ?? xfile);
+    return await _r2Storage.uploadImage(compressed ?? xfile);
   }
 
   // رفع مجموعة صور (6 كحد أقصى)

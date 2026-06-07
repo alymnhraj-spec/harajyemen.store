@@ -229,18 +229,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.08),
+        color: AppColors.primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
           CircleAvatar(
             radius: 32,
-            backgroundColor: AppColors.primary.withOpacity(0.2),
+            backgroundColor: AppColors.primary.withValues(alpha: 0.2),
             child: Text(
               _username.isNotEmpty ? _username[0].toUpperCase() : '؟',
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primary),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primary),
             ),
           ),
           const SizedBox(width: 16),
@@ -261,7 +261,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(width: 6),
                     GestureDetector(
                       onTap: _editUsername,
-                      child: const Icon(Icons.edit_outlined, size: 16, color: AppColors.primary),
+                      child: Icon(Icons.edit_outlined, size: 16, color: AppColors.primary),
                     ),
                   ],
                 ),
@@ -295,7 +295,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: iconColor.withOpacity(0.12),
+          backgroundColor: iconColor.withValues(alpha: 0.12),
           child: Icon(icon, color: iconColor, size: 22),
         ),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -603,7 +603,7 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
           maxLines: 1, overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text(post.priceDisplay,
-          style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700)),
+          style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700)),
         trailing: PopupMenuButton<String>(
           onSelected: (value) => _handleAction(context, value, post),
           itemBuilder: (_) => [

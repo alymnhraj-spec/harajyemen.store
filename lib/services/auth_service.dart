@@ -291,10 +291,10 @@ class AuthService {
     }
   }
 
-  // توليد رمز OTP عشوائي 6 أرقام
+  // توليد رمز OTP عشوائي 4 أرقام
   String _generateOtp() {
     final random = Random.secure();
-    return (100000 + random.nextInt(900000)).toString();
+    return (1000 + random.nextInt(9000)).toString();
   }
 
   // حفظ OTP في Firestore

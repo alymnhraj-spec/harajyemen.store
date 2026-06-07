@@ -232,7 +232,13 @@ async function handleApi(req, res, url) {
     }
     const code = String(Math.floor(1000 + Math.random() * 9000));
     saveOtp(email, code, purpose);
-    await sendOtpEmail(email, code);
+    try {
+      await sendOtpEmail(email, code);
+    } catch (err) {
+      console.error(`[OTP] send failed for ${email}:`, err.message);
+      sendJson(res, 502, { error: "تعذّر إرسال رمز التحقق. تحقّق من إعداد البريد (Resend)." });
+      return true;
+    }
     sendJson(res, 200, { success: true });
     return true;
   }

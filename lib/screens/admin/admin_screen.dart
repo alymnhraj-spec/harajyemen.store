@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../services/admin_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/email_service.dart';
 import '../../theme/app_theme.dart';
 
 class AdminScreen extends StatefulWidget {
@@ -23,11 +24,68 @@ class _AdminScreenState extends State<AdminScreen>
   final _notifBodyController = TextEditingController();
   bool _isSendingNotif = false;
   int _postsRefreshKey = 0;
+  int _currentPage = 0;
+  static const int _pageSize = 50;
+
+  // ===== حالة محرّر الثيم =====
+  late Color _themePrimary;
+  late Color _themeSecondary;
+  final _primaryHexController = TextEditingController();
+  final _secondaryHexController = TextEditingController();
+  bool _savingTheme = false;
+
+  // ===== حالة إعدادات البريد (Gmail SMTP) =====
+  final _emailSenderController = TextEditingController();
+  final _emailPasswordController = TextEditingController();
+  final _emailNameController = TextEditingController();
+  bool _savingEmail = false;
+  bool _obscureAppPassword = true;
+
+  static const List<Color> _primarySwatches = [
+    Color(0xFF1B5E20), // أخضر يمني (افتراضي)
+    Color(0xFF00695C), // تركواز داكن
+    Color(0xFF0D47A1), // أزرق
+    Color(0xFF1A237E), // نيلي
+    Color(0xFF4A148C), // بنفسجي
+    Color(0xFFAD1457), // وردي داكن
+    Color(0xFFB71C1C), // أحمر
+    Color(0xFFE65100), // برتقالي
+    Color(0xFF263238), // رمادي داكن
+  ];
+
+  static const List<Color> _secondarySwatches = [
+    Color(0xFFFFB300), // ذهبي (افتراضي)
+    Color(0xFFFF7043), // مرجاني
+    Color(0xFF26A69A), // تركواز
+    Color(0xFF42A5F5), // أزرق فاتح
+    Color(0xFFAB47BC), // بنفسجي فاتح
+    Color(0xFF66BB6A), // أخضر فاتح
+    Color(0xFFEC407A), // وردي
+  ];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
+    _themePrimary = AppColors.primary;
+    _themeSecondary = AppColors.secondary;
+    _primaryHexController.text = AppColors.toHex(_themePrimary);
+    _secondaryHexController.text = AppColors.toHex(_themeSecondary);
+    _emailNameController.text = 'حراج اليمن';
+    _loadEmailConfig();
+  }
+
+  Future<void> _loadEmailConfig() async {
+    try {
+      final cfg = await _adminService.getEmailConfig();
+      if (cfg != null && mounted) {
+        _emailSenderController.text = (cfg['sender_email'] as String?) ?? '';
+        _emailPasswordController.text = (cfg['app_password'] as String?) ?? '';
+        final name = (cfg['sender_name'] as String?) ?? '';
+        if (name.isNotEmpty) _emailNameController.text = name;
+        setState(() {});
+      }
+    } catch (_) {}
   }
 
   @override
@@ -37,6 +95,11 @@ class _AdminScreenState extends State<AdminScreen>
     _postSearchController.dispose();
     _notifTitleController.dispose();
     _notifBodyController.dispose();
+    _primaryHexController.dispose();
+    _secondaryHexController.dispose();
+    _emailSenderController.dispose();
+    _emailPasswordController.dispose();
+    _emailNameController.dispose();
     super.dispose();
   }
 
@@ -54,6 +117,7 @@ class _AdminScreenState extends State<AdminScreen>
         ],
         bottom: TabBar(
           controller: _tabController,
+          isScrollable: true,
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white70,
           indicatorColor: Colors.white,
@@ -89,12 +153,21 @@ class _AdminScreenState extends State<AdminScreen>
                 );
               },
             ),
+            const Tab(text: 'الثيم', icon: Icon(Icons.palette_outlined, size: 16)),
+            const Tab(text: 'البريد', icon: Icon(Icons.alternate_email, size: 16)),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
-        children: [_buildPostsTab(), _buildUsersTab(), _buildAdminsTab(), _buildReportsTab()],
+        children: [
+          _buildPostsTab(),
+          _buildUsersTab(),
+          _buildAdminsTab(),
+          _buildReportsTab(),
+          _buildThemeTab(),
+          _buildEmailTab(),
+        ],
       ),
     );
   }
@@ -164,7 +237,7 @@ class _AdminScreenState extends State<AdminScreen>
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                     isDense: true,
                   ),
-                  onChanged: (v) => setState(() => _postSearchQuery = v.trim()),
+                  onChanged: (v) => setState(() { _postSearchQuery = v.trim(); _currentPage = 0; }),
                 ),
               ),
               const SizedBox(width: 8),
@@ -211,10 +284,41 @@ class _AdminScreenState extends State<AdminScreen>
               if (posts.isEmpty) {
                 return Center(child: Text(_postSearchQuery.isNotEmpty ? 'لا توجد نتائج' : 'لا توجد إعلانات'));
               }
-              return ListView.separated(
-                itemCount: posts.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (_, i) => _buildPostTile(posts[i]),
+              final totalPages = (posts.length / _pageSize).ceil();
+              final page = _currentPage.clamp(0, totalPages - 1);
+              final pagePosts = posts.skip(page * _pageSize).take(_pageSize).toList();
+              return Column(
+                children: [
+                  Expanded(
+                    child: ListView.separated(
+                      itemCount: pagePosts.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (_, i) => _buildPostTile(pagePosts[i]),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, -2))],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.chevron_right),
+                          onPressed: page > 0 ? () => setState(() => _currentPage = page - 1) : null,
+                        ),
+                        Text('صفحة ${page + 1} من $totalPages  •  ${posts.length} إعلان',
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                        IconButton(
+                          icon: const Icon(Icons.chevron_left),
+                          onPressed: page < totalPages - 1 ? () => setState(() => _currentPage = page + 1) : null,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               );
             },
           ),
@@ -529,7 +633,7 @@ class _AdminScreenState extends State<AdminScreen>
                       );
                     }
                   },
-                  child: const Text('رفع الحظر',
+                  child: Text('رفع الحظر',
                       style: TextStyle(color: AppColors.primary)),
                 )
               : TextButton(
@@ -694,16 +798,16 @@ class _AdminScreenState extends State<AdminScreen>
       decoration: BoxDecoration(
         color: const Color(0xFFF1F8E9),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(Icons.campaign, color: AppColors.primary, size: 20),
-              SizedBox(width: 8),
-              Text('إرسال إشعار لجميع المستخدمين',
+              const SizedBox(width: 8),
+              const Text('إرسال إشعار لجميع المستخدمين',
                   style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
             ],
           ),
@@ -1002,5 +1106,559 @@ class _AdminScreenState extends State<AdminScreen>
         ],
       ),
     );
+  }
+
+  // ===================== تبويب الثيم =====================
+  Widget _buildThemeTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('معاينة مباشرة',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 10),
+          _themePreview(),
+          const SizedBox(height: 24),
+          _colorSection(
+            title: 'اللون الأساسي (هوية التطبيق)',
+            subtitle: 'الشريط العلوي، الأزرار، الأسعار...',
+            swatches: _primarySwatches,
+            selected: _themePrimary,
+            controller: _primaryHexController,
+            onPick: (c) => setState(() {
+              _themePrimary = c;
+              _primaryHexController.text = AppColors.toHex(c);
+            }),
+            onHex: (hex) {
+              final c = AppColors.fromHex(hex);
+              if (c != null) setState(() => _themePrimary = c);
+            },
+          ),
+          const SizedBox(height: 24),
+          _colorSection(
+            title: 'اللون الثانوي (التمييز)',
+            subtitle: 'الدردشة، الفئات، العناصر المميزة...',
+            swatches: _secondarySwatches,
+            selected: _themeSecondary,
+            controller: _secondaryHexController,
+            onPick: (c) => setState(() {
+              _themeSecondary = c;
+              _secondaryHexController.text = AppColors.toHex(c);
+            }),
+            onHex: (hex) {
+              final c = AppColors.fromHex(hex);
+              if (c != null) setState(() => _themeSecondary = c);
+            },
+          ),
+          const SizedBox(height: 28),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _savingTheme ? null : _resetThemeToDefault,
+                  icon: const Icon(Icons.restart_alt),
+                  label: const Text('الافتراضي'),
+                  style: OutlinedButton.styleFrom(minimumSize: const Size(0, 50)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton.icon(
+                  onPressed: _savingTheme ? null : _saveTheme,
+                  icon: _savingTheme
+                      ? const SizedBox(
+                          width: 16, height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.save_outlined, color: Colors.white),
+                  label: Text(_savingTheme ? 'جاري الحفظ...' : 'حفظ وتطبيق للجميع'),
+                  style: ElevatedButton.styleFrom(minimumSize: const Size(0, 50)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.info_outline, size: 18, color: Colors.blue),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'سيُطبَّق الثيم فوراً على جميع المستخدمين عند الحفظ.',
+                    style: TextStyle(fontSize: 12, color: Colors.black87),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _themePreview() {
+    final primaryDeep = _darkenPreview(_themePrimary, 0.12);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFFF2F4F7),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Column(
+          children: [
+            Container(
+              height: 52,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                  colors: [_themePrimary, primaryDeep],
+                ),
+              ),
+              alignment: Alignment.center,
+              child: const Text('حراج اليمن',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      _previewChip('الكل', _themePrimary, true),
+                      const SizedBox(width: 8),
+                      _previewChip('سيارات', _themeSecondary, false),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _themePrimary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text('1.5 ألف',
+                            style: TextStyle(color: _themePrimary, fontWeight: FontWeight.w800, fontSize: 12)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: _themePrimary,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text('زر أساسي',
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Container(
+                        width: 44, height: 44,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(colors: [_themePrimary, primaryDeep]),
+                        ),
+                        child: const Icon(Icons.add, color: Colors.white),
+                      ),
+                      const SizedBox(width: 10),
+                      Container(
+                        width: 44, height: 44,
+                        decoration: BoxDecoration(shape: BoxShape.circle, color: _themeSecondary),
+                        child: const Icon(Icons.chat_bubble, color: Colors.white, size: 20),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _previewChip(String label, Color color, bool filled) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: filled ? color : color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color),
+      ),
+      child: Text(label,
+          style: TextStyle(
+              color: filled ? Colors.white : color, fontWeight: FontWeight.w700, fontSize: 12)),
+    );
+  }
+
+  Widget _colorSection({
+    required String title,
+    required String subtitle,
+    required List<Color> swatches,
+    required Color selected,
+    required TextEditingController controller,
+    required ValueChanged<Color> onPick,
+    required ValueChanged<String> onHex,
+  }) {
+    final selectedHex = AppColors.toHex(selected);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+        Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: swatches.map((c) {
+            final isSel = AppColors.toHex(c) == selectedHex;
+            return GestureDetector(
+              onTap: () => onPick(c),
+              child: Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  color: c,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isSel ? Colors.black87 : Colors.white,
+                    width: isSel ? 3 : 2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(color: c.withValues(alpha: 0.4), blurRadius: 6, offset: const Offset(0, 2)),
+                  ],
+                ),
+                child: isSel ? const Icon(Icons.check, color: Colors.white, size: 22) : null,
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: selected,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextField(
+                controller: controller,
+                textDirection: TextDirection.ltr,
+                textCapitalization: TextCapitalization.characters,
+                decoration: InputDecoration(
+                  labelText: 'لون مخصص (HEX)',
+                  prefixText: '#',
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onChanged: onHex,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Color _darkenPreview(Color c, double amount) {
+    final hsl = HSLColor.fromColor(c);
+    return hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0)).toColor();
+  }
+
+  Future<void> _saveTheme() async {
+    setState(() => _savingTheme = true);
+    try {
+      await _adminService.saveTheme(
+        primaryHex: AppColors.toHex(_themePrimary),
+        secondaryHex: AppColors.toHex(_themeSecondary),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم حفظ الثيم وتطبيقه على الجميع ✓'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذّر الحفظ: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingTheme = false);
+    }
+  }
+
+  Future<void> _resetThemeToDefault() async {
+    setState(() => _savingTheme = true);
+    try {
+      await _adminService.resetTheme();
+      if (mounted) {
+        setState(() {
+          _themePrimary = AppColors.defaultPrimary;
+          _themeSecondary = AppColors.defaultSecondary;
+          _primaryHexController.text = AppColors.toHex(AppColors.defaultPrimary);
+          _secondaryHexController.text = AppColors.toHex(AppColors.defaultSecondary);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تمت إعادة الثيم إلى الافتراضي')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذّر: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingTheme = false);
+    }
+  }
+
+  // ===================== تبويب البريد (Gmail SMTP) =====================
+  Widget _buildEmailTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F8E9),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.mark_email_read_outlined, color: AppColors.primary, size: 20),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'تُرسَل رموز التحقق من بريد Gmail هذا (في التطبيق والموقع). '
+                    'استخدم «كلمة سر التطبيقات» وليس كلمة مرور حسابك.',
+                    style: TextStyle(fontSize: 12.5, height: 1.7, color: Colors.black87),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          const Text('بريد المُرسِل (Gmail)',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _emailSenderController,
+            keyboardType: TextInputType.emailAddress,
+            textDirection: TextDirection.ltr,
+            decoration: InputDecoration(
+              hintText: 'example@gmail.com',
+              prefixIcon: const Icon(Icons.email_outlined),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              isDense: true,
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          const Text('اسم المُرسِل (يظهر للمستلم)',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _emailNameController,
+            textDirection: TextDirection.rtl,
+            decoration: InputDecoration(
+              hintText: 'حراج اليمن',
+              prefixIcon: const Icon(Icons.badge_outlined),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              isDense: true,
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          const Text('كلمة سر التطبيقات (App Password)',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _emailPasswordController,
+            obscureText: _obscureAppPassword,
+            textDirection: TextDirection.ltr,
+            decoration: InputDecoration(
+              hintText: 'xxxx xxxx xxxx xxxx',
+              prefixIcon: const Icon(Icons.key_outlined),
+              suffixIcon: IconButton(
+                icon: Icon(_obscureAppPassword
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined),
+                onPressed: () =>
+                    setState(() => _obscureAppPassword = !_obscureAppPassword),
+              ),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              isDense: true,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'أنشئها من: حساب Google ← الأمان ← التحقق بخطوتين ← كلمات مرور التطبيقات '
+            '(myaccount.google.com/apppasswords).',
+            style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary, height: 1.7),
+          ),
+          const SizedBox(height: 22),
+
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _savingEmail ? null : _sendTestEmail,
+                  icon: const Icon(Icons.send_outlined, size: 18),
+                  label: const Text('إرسال تجريبي'),
+                  style: OutlinedButton.styleFrom(minimumSize: const Size(0, 50)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton.icon(
+                  onPressed: _savingEmail ? null : _saveEmailConfig,
+                  icon: _savingEmail
+                      ? const SizedBox(
+                          width: 16, height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.save_outlined, color: Colors.white),
+                  label: Text(_savingEmail ? 'جاري الحفظ...' : 'حفظ الإعدادات'),
+                  style: ElevatedButton.styleFrom(minimumSize: const Size(0, 50)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.amber.shade200),
+            ),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.shield_outlined, size: 18, color: Color(0xFF8B6A08)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'ملاحظة أمان: كلمة سر التطبيقات حسّاسة. للموقع، يُفضّل ضبط مفتاح حساب '
+                    'خدمة Firebase (FIREBASE_SERVICE_ACCOUNT) على الخادم لقراءتها بأمان.',
+                    style: TextStyle(fontSize: 11.5, height: 1.7, color: Color(0xFF7c5a17)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _saveEmailConfig() async {
+    final email = _emailSenderController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('أدخل بريداً إلكترونياً صحيحاً')),
+      );
+      return;
+    }
+    if (_emailPasswordController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('أدخل كلمة سر التطبيقات')),
+      );
+      return;
+    }
+    setState(() => _savingEmail = true);
+    try {
+      await _adminService.saveEmailConfig(
+        senderEmail: email,
+        appPassword: _emailPasswordController.text,
+        senderName: _emailNameController.text,
+      );
+      EmailService.clearConfigCache();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم حفظ إعدادات البريد ✓'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذّر الحفظ: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingEmail = false);
+    }
+  }
+
+  Future<void> _sendTestEmail() async {
+    final email = _emailSenderController.text.trim();
+    if (email.isEmpty || _emailPasswordController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('أدخل البريد وكلمة سر التطبيقات أولاً')),
+      );
+      return;
+    }
+    setState(() => _savingEmail = true);
+    try {
+      // احفظ الإعدادات ثم أرسل رمزاً تجريبياً عبرها
+      await _adminService.saveEmailConfig(
+        senderEmail: email,
+        appPassword: _emailPasswordController.text,
+        senderName: _emailNameController.text,
+      );
+      EmailService.clearConfigCache();
+      final code = (1000 + DateTime.now().millisecondsSinceEpoch % 9000).toString();
+      await EmailService.sendOtp(toEmail: email, otp: code, type: 'register');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('تم إرسال رسالة تجريبية إلى $email ✓ — تحقّق من الوارد/السبام'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('فشل الإرسال التجريبي: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 6),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingEmail = false);
+    }
   }
 }
